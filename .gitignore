@@ -38,3 +38,7 @@ ui-debug.log
 # Build directories
 dist/
 build/
+
+# Project instructions
+gemini.md
+Instructions.md
