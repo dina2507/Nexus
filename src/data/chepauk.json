@@ -1,0 +1,21 @@
+{
+  "id": "chepauk",
+  "name": "MA Chidambaram Stadium, Chennai",
+  "total_capacity": 38000,
+  "coords": { "lat": 13.0631, "lng": 80.2790 },
+  "crush_threshold": 0.82,
+  "critical_threshold": 0.93,
+  "zones": [
+    { "id": "north_stand", "label": "North Stand", "capacity": 9200, "gates": ["G7","G8"], "adjacent_zones": ["concourse_a","east_block"], "concessions": ["C_N1","C_N2"], "medical_post": "MP_NW", "throughput_per_min": 320, "surge_pattern": { "pre_kickoff_mins": 18, "halftime_surge_pct": 0.94 }, "map_polygon": [{"lat":13.0641,"lng":80.2783},{"lat":13.0644,"lng":80.2798},{"lat":13.0638,"lng":80.2800},{"lat":13.0635,"lng":80.2785}] },
+    { "id": "south_stand", "label": "South Stand", "capacity": 8600, "gates": ["G4","G5"], "adjacent_zones": ["concourse_b","west_block"], "throughput_per_min": 290, "surge_pattern": { "pre_kickoff_mins": 20, "halftime_surge_pct": 0.88 } },
+    { "id": "east_block", "label": "East Block", "capacity": 6400, "gates": ["G2","G3"], "adjacent_zones": ["concourse_a"], "throughput_per_min": 240, "surge_pattern": { "pre_kickoff_mins": 15, "halftime_surge_pct": 0.72 } },
+    { "id": "west_block", "label": "West Block", "capacity": 5800, "gates": ["G6"], "adjacent_zones": ["concourse_b"], "throughput_per_min": 200, "surge_pattern": { "pre_kickoff_mins": 12, "halftime_surge_pct": 0.68 } },
+    { "id": "concourse_a", "label": "Concourse A", "capacity": 4000, "gates": ["G7","G8"], "adjacent_zones": ["north_stand","east_block"], "throughput_per_min": 500, "surge_pattern": { "pre_kickoff_mins": 10, "halftime_surge_pct": 0.91 } }
+  ],
+  "incentive_config": {
+    "min_value_inr": 50,
+    "standard_value_inr": 100,
+    "max_budget_per_match_inr": 200000,
+    "acceptance_rate_at_100": 0.68
+  }
+}
