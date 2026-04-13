@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { useNexus } from '../context/NexusContext';
 import {
   Chart as ChartJS,
@@ -24,18 +24,19 @@ const ImpactChart = () => {
   const rawLog = matchState?.density_log;
   const isLive = rawLog && rawLog.length >= 3;
 
-  let labels, withNexus, withoutNexus;
-
-  if (isLive) {
-    const log    = rawLog.slice(-40);
-    labels       = log.map(d => String(Math.round(d.t)));
-    withNexus    = log.map(d => Math.round((d.north_stand || 0) * 100));
-    withoutNexus = log.map(d => Math.min(99, Math.round(((d.north_stand || 0) + 0.13) * 100)));
-  } else {
-    labels       = STATIC_LABELS;
-    withNexus    = STATIC_WITH;
-    withoutNexus = STATIC_WITHOUT;
-  }
+  // Memoize derived series so chart.js only re-draws when the log actually
+  // grows, not on every parent re-render triggered by action-feed updates.
+  const { labels, withNexus, withoutNexus } = useMemo(() => {
+    if (isLive) {
+      const log = rawLog.slice(-40);
+      return {
+        labels:       log.map(d => String(Math.round(d.t))),
+        withNexus:    log.map(d => Math.round((d.north_stand || 0) * 100)),
+        withoutNexus: log.map(d => Math.min(99, Math.round(((d.north_stand || 0) + 0.13) * 100))),
+      };
+    }
+    return { labels: STATIC_LABELS, withNexus: STATIC_WITH, withoutNexus: STATIC_WITHOUT };
+  }, [isLive, rawLog?.length]);
 
   const options = {
     responsive: true,
@@ -144,4 +145,4 @@ const ImpactChart = () => {
   );
 };
 
-export default ImpactChart;
+export default memo(ImpactChart);

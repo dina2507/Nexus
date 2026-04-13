@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 
 // Proper stadium overhead layout — fixed coordinates in 400×280 viewBox
@@ -195,4 +195,15 @@ const StadiumMap = ({ crowdDensity = {} }) => {
   );
 };
 
-export default StadiumMap;
+// Skip re-render unless any zone density actually changed.
+function densitiesEqual(prev, next) {
+  const a = prev.crowdDensity || {};
+  const b = next.crowdDensity || {};
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if ((a[k] ?? 0) !== (b[k] ?? 0)) return false;
+  }
+  return true;
+}
+
+export default memo(StadiumMap, densitiesEqual);

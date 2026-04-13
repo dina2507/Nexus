@@ -20,19 +20,42 @@ const db = admin.firestore();
 setGlobalOptions({ maxInstances: 10 });
 
 /**
- * Crowd simulator — runs every 1 minute.
- * Executes twice per invocation (~30s apart) to approximate 30s updates.
+ * Crowd simulator — runs every 1 minute on the minute.
+ * Paired with crowdSimulatorCronOffset (below) to give ~30s cadence
+ * without holding a single function instance alive for 30s.
  */
 exports.crowdSimulatorCron = onSchedule('every 1 minutes', async () => {
-  console.log('NEXUS: Running crowd simulator tick 1...');
-  await simulateCrowd('chepauk', db);
-
-  // Wait 30s, then run again for 2x per minute
-  await new Promise(r => setTimeout(r, 30000));
-
-  console.log('NEXUS: Running crowd simulator tick 2...');
+  if (await isEnginePaused()) {
+    console.log('NEXUS: Simulator skipped — engine paused');
+    return;
+  }
+  console.log('NEXUS: Running crowd simulator tick (top of minute)...');
   await simulateCrowd('chepauk', db);
 });
+
+/**
+ * Offset simulator — runs every 1 minute but at :30 thanks to its own
+ * Cloud Scheduler cron expression. Cheaper than setTimeout(30000).
+ */
+exports.crowdSimulatorCronOffset = onSchedule(
+  { schedule: '* * * * *', timeZone: 'Asia/Kolkata' },
+  async () => {
+    // 30s delay — runs at the half-minute mark of every minute.
+    // We still need a small offset since Cloud Scheduler granularity is 1m.
+    await new Promise(r => setTimeout(r, 30000));
+    if (await isEnginePaused()) {
+      console.log('NEXUS: Offset simulator skipped — engine paused');
+      return;
+    }
+    console.log('NEXUS: Running crowd simulator tick (offset +30s)...');
+    await simulateCrowd('chepauk', db);
+  }
+);
+
+async function isEnginePaused() {
+  const snap = await db.doc('nexus_state/engine').get();
+  return Boolean(snap.data()?.paused);
+}
 
 /**
  * NEXUS engine — triggers when any crowd_density document updates.
@@ -54,7 +77,53 @@ exports.nexusOnCrowdUpdate = onDocumentUpdated(
  * POST { stadiumId, scenario } to run specific demo scenarios.
  */
 exports.nexusTrigger = onRequest({ cors: true }, async (req, res) => {
-  const { stadiumId = 'chepauk', scenario, manualAction } = req.body;
+  const { stadiumId = 'chepauk', scenario, manualAction, emergencyBroadcast } = req.body;
+
+  // Emergency broadcast — fan-wide FCM blast, bypasses Gemini and budget
+  if (emergencyBroadcast) {
+    console.log(`NEXUS: Emergency broadcast triggered for ${stadiumId}`);
+    try {
+      const fanSnap = await db.collection('fan_profiles')
+        .where('stadium_id', '==', stadiumId).get();
+      const tokens = [];
+      fanSnap.forEach((d) => { if (d.data()?.fcm_token) tokens.push(d.data().fcm_token); });
+
+      let messagingResult = { successCount: 0, failureCount: 0 };
+      if (tokens.length > 0) {
+        messagingResult = await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: 'NEXUS · EMERGENCY ALERT',
+            body: 'Stadium operators have issued an urgent advisory. Follow staff instructions immediately.',
+          },
+          data: { type: 'emergency_broadcast', stadium_id: stadiumId },
+        });
+      }
+
+      // Log the broadcast as a P5 system action so it shows in the feed
+      await db.collection('nexus_actions').add({
+        stakeholder: 'system',
+        action: 'EMERGENCY BROADCAST sent to all fans',
+        priority: 5,
+        status: 'dispatched',
+        stadium_id: stadiumId,
+        timestamp: new Date().toISOString(),
+        risk_assessment: 'Operator-initiated emergency broadcast',
+        confidence: 1.0,
+        broadcast_recipients: tokens.length,
+      });
+
+      return res.json({
+        success: true,
+        type: 'emergency_broadcast',
+        recipients: tokens.length,
+        ...messagingResult,
+      });
+    } catch (err) {
+      console.error('Emergency broadcast failed:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
   // Operator manual override — skips AI engine entirely
   if (manualAction) {

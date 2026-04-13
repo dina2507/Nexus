@@ -1,39 +1,85 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNexus } from '../context/NexusContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Ticket, Bell, Navigation, Activity } from 'lucide-react';
 import { getToken, onMessage } from 'firebase/messaging';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import {
+  doc, setDoc, getDoc,
+  collection, query, where, orderBy, limit, onSnapshot,
+} from 'firebase/firestore';
 import { auth, db, messaging } from '../firebase/config';
 
+const STADIUM_ID = import.meta.env.VITE_STADIUM_ID || 'chepauk';
+
+const DEFAULT_SEAT = {
+  section: 'North Stand',
+  tier: 'Upper Tier',
+  seat: 'F-122',
+  gate: 'G7',
+  zone_id: 'north_stand',
+};
+
+function buildVoucherPayload(action, uid) {
+  return JSON.stringify({
+    v: 1,
+    uid: uid || 'anon',
+    zone: action.target_zone || '',
+    inr: action.incentive_inr || 0,
+    ts: Date.now(),
+  });
+}
+
+function qrImageUrl(payload) {
+  // External QR service avoids pulling in a dependency. Antigravity can swap
+  // this for a client-side library (qrcode.react) in v3 — see buildv3.md.
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=2&data=${encodeURIComponent(payload)}`;
+}
+
 const FanApp = () => {
-  const { matchState } = useNexus();
+  const { matchState, densities } = useNexus();
   const [notification, setNotification] = useState(null);
   const [activeTab, setActiveTab] = useState('navigate');
+  const [fanProfile, setFanProfile] = useState(null);
+  const [uid, setUid] = useState(null);
 
+  // ── Auth + FCM bootstrap + profile load ──────────────────
   useEffect(() => {
     let unsubscribeMessage = null;
     let unsubscribeAuth = null;
 
-    async function bootstrapMessaging() {
+    async function bootstrap() {
       try { await signInAnonymously(auth); }
       catch (err) { console.warn('Anonymous sign-in unavailable:', err?.message || err); }
 
       unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-        if (!currentUser || !messaging) return;
+        if (!currentUser) return;
+        setUid(currentUser.uid);
 
+        // Load or seed fan profile with a demo seat
+        const ref = doc(db, 'fan_profiles', currentUser.uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          setFanProfile({ ...DEFAULT_SEAT, ...snap.data() });
+        } else {
+          await setDoc(ref, {
+            stadium_id: STADIUM_ID,
+            ...DEFAULT_SEAT,
+            created_at: new Date().toISOString(),
+          }, { merge: true });
+          setFanProfile(DEFAULT_SEAT);
+        }
+
+        if (!messaging) return;
         const permission = Notification.permission === 'default'
           ? await Notification.requestPermission()
           : Notification.permission;
-
         if (permission !== 'granted') return;
 
         try {
           const token = await getToken(messaging, { vapidKey: import.meta.env.VITE_VAPID_KEY });
           if (token) {
-            await setDoc(doc(db, 'fan_profiles', currentUser.uid), {
-              stadium_id: import.meta.env.VITE_STADIUM_ID || 'chepauk',
+            await setDoc(ref, {
               fcm_token: token,
               updated_at: new Date().toISOString(),
             }, { merge: true });
@@ -48,38 +94,52 @@ const FanApp = () => {
           setNotification({
             title: payload.notification?.title || 'NEXUS Alert',
             body: payload.notification?.body || 'New fan nudge available',
-            reward: payload.data?.incentive_inr ? `₹${payload.data.incentive_inr} voucher` : 'View now',
+            target_zone: payload.data?.target_zone || '',
+            incentive_inr: Number(payload.data?.incentive_inr || 0),
           });
         });
       }
     }
 
-    bootstrapMessaging();
+    bootstrap();
     return () => {
       if (unsubscribeMessage) unsubscribeMessage();
       if (unsubscribeAuth) unsubscribeAuth();
     };
   }, []);
 
+  // ── Subscribe ONLY to fan actions targeting this fan's zone ─
   useEffect(() => {
+    if (!fanProfile?.zone_id) return undefined;
     const q = query(
       collection(db, 'nexus_actions'),
       where('stakeholder', '==', 'fans'),
+      where('stadium_id', '==', STADIUM_ID),
       where('status', '==', 'dispatched'),
       orderBy('timestamp', 'desc'),
       limit(1)
     );
     return onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        const action = snap.docs[0].data();
-        setNotification({
-          title: `NEXUS · ${action.target_zone?.replace(/_/g, ' ') || 'Stadium'}`,
-          body: action.action,
-          reward: action.incentive_inr ? `₹${action.incentive_inr} voucher` : 'View now',
-        });
-      }
+      if (snap.empty) return;
+      const action = snap.docs[0].data();
+      // Only surface if the action targets this fan's zone OR is a global push
+      if (action.target_zone && action.target_zone !== fanProfile.zone_id) return;
+      setNotification({
+        title: `NEXUS · ${action.target_zone?.replace(/_/g, ' ') || 'Stadium'}`,
+        body: action.action,
+        target_zone: action.target_zone || '',
+        incentive_inr: action.incentive_inr || 0,
+      });
     });
-  }, []);
+  }, [fanProfile?.zone_id]);
+
+  // Voucher QR is stable for the current notification
+  const voucherPayload = useMemo(
+    () => notification ? buildVoucherPayload(notification, uid) : null,
+    [notification, uid]
+  );
+
+  const myZoneDensity = fanProfile?.zone_id ? (densities[fanProfile.zone_id]?.pct || 0) : 0;
 
   const tabs = [
     { id: 'navigate', label: 'Navigate', Icon: Navigation },
@@ -121,7 +181,7 @@ const FanApp = () => {
       {/* Content */}
       <div style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-        {/* Seat card */}
+        {/* Seat card — now driven by fan_profiles */}
         <div className="card" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
             <div style={{
@@ -130,39 +190,43 @@ const FanApp = () => {
             }}>
               <Ticket style={{ color: 'var(--accent)' }} size={18} />
             </div>
-            <span className="badge badge-slate">Entry: G7</span>
+            <span className="badge badge-slate">Entry: {fanProfile?.gate || '—'}</span>
           </div>
           <p style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 2px', letterSpacing: '-0.01em' }}>
-            Seat F-122
+            Seat {fanProfile?.seat || '—'}
           </p>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-            North Stand · Upper Tier
+            {fanProfile?.section || '—'} · {fanProfile?.tier || '—'}
           </p>
         </div>
 
-        {/* Wait times card */}
+        {/* Your zone density — live from Firestore */}
         <div className="card" style={{ padding: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
             <MapPin size={12} style={{ color: 'var(--accent)' }} />
-            <span className="section-label">Live Wait Times</span>
+            <span className="section-label">Your Zone — live</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0 0 3px',
                 fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Gate G7
+                {fanProfile?.section || 'Your Section'}
               </p>
-              <p style={{ fontSize: '24px', fontWeight: 600, margin: 0 }}>
-                4 <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}>min</span>
+              <p style={{ fontSize: '24px', fontWeight: 600, margin: 0,
+                color: myZoneDensity >= 0.82 ? 'var(--danger)' : myZoneDensity >= 0.70 ? 'var(--warning)' : 'var(--success)' }}>
+                {(myZoneDensity * 100).toFixed(0)}
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}>%</span>
               </p>
             </div>
             <div>
               <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0 0 3px',
                 fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Concessions
+                Gate {fanProfile?.gate || '—'} wait
               </p>
-              <p style={{ fontSize: '24px', fontWeight: 600, margin: 0, color: 'var(--success)' }}>
-                2 <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}>min</span>
+              <p style={{ fontSize: '24px', fontWeight: 600, margin: 0,
+                color: myZoneDensity >= 0.82 ? 'var(--danger)' : 'var(--success)' }}>
+                {Math.max(1, Math.round(myZoneDensity * 8))}
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}> min</span>
               </p>
             </div>
           </div>
@@ -170,7 +234,7 @@ const FanApp = () => {
 
       </div>
 
-      {/* Notification overlay */}
+      {/* Notification overlay — now includes the voucher QR */}
       <AnimatePresence>
         {notification && (
           <motion.div
@@ -187,7 +251,6 @@ const FanApp = () => {
               boxShadow: '0 16px 40px rgba(0,0,0,0.65)',
               position: 'relative', overflow: 'hidden',
             }}>
-              {/* Blue left accent stripe */}
               <div style={{
                 position: 'absolute', top: 0, left: 0, width: '3px', height: '100%',
                 background: 'var(--accent)',
@@ -203,6 +266,7 @@ const FanApp = () => {
                   </div>
                   <button
                     onClick={() => setNotification(null)}
+                    aria-label="Dismiss notification"
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)',
                       cursor: 'pointer', padding: '2px', lineHeight: 1, fontSize: '14px' }}
                   >
@@ -215,12 +279,44 @@ const FanApp = () => {
                   {notification.body}
                 </p>
 
+                {/* Voucher QR — shown only when incentive is present */}
+                {notification.incentive_inr > 0 && voucherPayload && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '10px', marginBottom: '12px',
+                    background: 'rgba(59,130,246,0.06)',
+                    border: '1px solid rgba(59,130,246,0.15)',
+                    borderRadius: '8px',
+                  }}>
+                    <img
+                      src={qrImageUrl(voucherPayload)}
+                      alt={`Voucher QR code for ₹${notification.incentive_inr}`}
+                      width={72}
+                      height={72}
+                      style={{ borderRadius: '6px', background: 'white', padding: '4px', flexShrink: 0 }}
+                    />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)',
+                        fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>
+                        Voucher
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent)' }}>
+                        ₹{notification.incentive_inr}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        Scan at any concession
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <button
                   className="btn-primary"
                   style={{ width: '100%', padding: '10px', justifyContent: 'center' }}
                 >
                   <Navigation size={14} />
-                  Route me · Claim {notification.reward}
+                  Route me
+                  {notification.incentive_inr > 0 && ` · Claim ₹${notification.incentive_inr}`}
                 </button>
               </div>
             </div>
@@ -241,6 +337,8 @@ const FanApp = () => {
           <button
             key={id}
             onClick={() => setActiveTab(id)}
+            aria-label={`${label} tab`}
+            aria-pressed={activeTab === id}
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
               background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px',

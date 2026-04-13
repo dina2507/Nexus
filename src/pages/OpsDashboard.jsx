@@ -1,13 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNexus } from '../context/NexusContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Shield, Zap, AlertTriangle, Terminal, Map, List } from 'lucide-react';
+import { Users, Shield, Zap, AlertTriangle, Terminal, Map, List, Pause, Play, Radio } from 'lucide-react';
 import StadiumMap from '../components/StadiumMap';
 import ZoneDensityBars from '../components/ZoneDensityBars';
 import ImpactChart from '../components/ImpactChart';
 import ApprovalQueue from '../components/ApprovalQueue';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '../firebase/config';
+import { auth, db } from '../firebase/config';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 const STADIUM_ID = import.meta.env.VITE_STADIUM_ID || 'chepauk';
 
@@ -23,18 +24,51 @@ const OpsDashboard = () => {
   const [user, setUser] = useState(null);
   const [mobileTab, setMobileTab] = useState('map');
   const [overrideLoading, setOverrideLoading] = useState(null);
-  const [, setTick] = useState(0);
+  const [enginePaused, setEnginePaused] = useState(false);
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (nextUser) => setUser(nextUser));
     return () => unsub();
   }, []);
 
-  // 30-second ticker so match clock badge stays current between Firestore updates
+  // Subscribe to engine pause state so the toggle stays in sync with Firestore
   useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30_000);
-    return () => clearInterval(id);
+    const unsub = onSnapshot(doc(db, 'nexus_state', 'engine'), (snap) => {
+      setEnginePaused(Boolean(snap.data()?.paused));
+    });
+    return () => unsub();
   }, []);
+
+  async function togglePause() {
+    try {
+      await setDoc(
+        doc(db, 'nexus_state', 'engine'),
+        { paused: !enginePaused, paused_at: new Date().toISOString() },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error('Pause toggle failed:', err);
+    }
+  }
+
+  async function triggerEmergencyBroadcast() {
+    if (broadcastLoading) return;
+    const confirmed = window.confirm('Broadcast emergency alert to ALL registered fans?');
+    if (!confirmed) return;
+    setBroadcastLoading(true);
+    try {
+      await fetch(`${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stadiumId: STADIUM_ID, emergencyBroadcast: true }),
+      });
+    } catch (err) {
+      console.error('Emergency broadcast failed:', err);
+    } finally {
+      setBroadcastLoading(false);
+    }
+  }
 
   async function dispatchOverride(a) {
     setOverrideLoading(a.id);
@@ -75,7 +109,12 @@ const OpsDashboard = () => {
     : 0;
   const pressureIndex = (avgDensity * 10).toFixed(1);
   const latestRisk = actions.length > 0 ? actions[0]?.risk_assessment : null;
-  const mapDensities = Object.fromEntries(Object.entries(densities).map(([id, d]) => [id, d.pct || 0]));
+  // Memoize the map densities so StadiumMap only re-renders when actual zone
+  // percentages change, not on every parent re-render from the action feed.
+  const mapDensities = useMemo(
+    () => Object.fromEntries(Object.entries(densities).map(([id, d]) => [id, d.pct || 0])),
+    [densities]
+  );
   const matchClock = formatMatchClock(matchState);
 
   // ── Left column ──────────────────────────────────────────
@@ -148,12 +187,46 @@ const OpsDashboard = () => {
       <section className="card" style={{ overflow: 'hidden' }}>
         <div style={{
           padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex', alignItems: 'center', gap: '7px',
+          display: 'flex', alignItems: 'center', gap: '7px', justifyContent: 'space-between',
         }}>
-          <Terminal size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-          <span className="section-label">Operator Override</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <Terminal size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+            <span className="section-label">Operator Override</span>
+          </div>
+          {enginePaused && <span className="badge badge-amber">AI Paused</span>}
         </div>
-        <div style={{ padding: '10px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+
+        {/* Kill-switch row: pause AI + emergency broadcast */}
+        <div style={{ padding: '10px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+          <button
+            className="btn-ghost"
+            onClick={togglePause}
+            aria-label={enginePaused ? 'Resume NEXUS AI engine' : 'Pause NEXUS AI engine'}
+            style={{
+              padding: '8px 6px', fontSize: '11px', justifyContent: 'center', textAlign: 'center',
+              gap: '5px', color: enginePaused ? 'var(--success)' : 'var(--warning)',
+              borderColor: enginePaused ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)',
+            }}
+          >
+            {enginePaused ? <Play size={12} /> : <Pause size={12} />}
+            {enginePaused ? 'Resume AI' : 'Pause AI'}
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={triggerEmergencyBroadcast}
+            disabled={broadcastLoading}
+            aria-label="Trigger emergency broadcast to all fans"
+            style={{
+              padding: '8px 6px', fontSize: '11px', justifyContent: 'center', textAlign: 'center',
+              gap: '5px', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)',
+            }}
+          >
+            <Radio size={12} />
+            {broadcastLoading ? 'Sending…' : 'Emergency'}
+          </button>
+        </div>
+
+        <div style={{ padding: '8px 12px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
           {OVERRIDE_ACTIONS.map(a => (
             <button
               key={a.id}
@@ -162,6 +235,7 @@ const OpsDashboard = () => {
               onClick={() => dispatchOverride(a)}
               disabled={overrideLoading !== null}
               title={a.action}
+              aria-label={a.action}
             >
               {overrideLoading === a.id ? '…' : a.label}
             </button>

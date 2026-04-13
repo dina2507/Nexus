@@ -2,7 +2,7 @@
  * NEXUS Gemini Prompt Template
  * Builds the full context prompt for Gemini 2.0 Flash decision engine.
  */
-function buildNexusPrompt(stadium, crowdState, matchState) {
+function buildNexusPrompt(stadium, crowdState, matchState, historicalPatterns) {
   const zonesContext = stadium.zones.map(z => ({
     id: z.id,
     label: z.label,
@@ -16,6 +16,18 @@ function buildNexusPrompt(stadium, crowdState, matchState) {
     medical_post: z.medical_post
   }));
 
+  // Historical pattern block — only inject if we have something useful.
+  // Helps Gemini ground its predictions in prior matches at this venue.
+  const historyBlock = historicalPatterns && Array.isArray(historicalPatterns.patterns)
+    ? `
+
+HISTORICAL PATTERNS (past matches at this venue):
+${historicalPatterns.patterns.map((p, i) =>
+  `${i + 1}. ${p.label} — ${p.description} (outcome: ${p.outcome})`
+).join('\n')}
+`
+    : '';
+
   return `
 You are NEXUS, the AI operations engine for ${stadium.name}.
 Stadium capacity: ${stadium.total_capacity}. Current attendance: ${matchState.attendance}.
@@ -28,7 +40,7 @@ MATCH CONTEXT:
 - Halftime in: ${matchState.mins_to_halftime} minutes
 - Weather: ${matchState.weather}
 - Incentive budget remaining: ₹${matchState.remaining_budget}
-
+${historyBlock}
 PHYSICAL CONSTRAINTS:
 - Crush threshold: ${stadium.crush_threshold * 100}% (action required above this)
 - Critical threshold: ${stadium.critical_threshold * 100}% (human approval required)

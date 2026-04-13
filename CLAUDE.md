@@ -79,16 +79,20 @@ All pages consume this via `useNexus()`.
 | `crowd_density/{zoneId}` | `pct` (0–1), `stadium_id`, `updated_at` |
 | `match_events/current` | `match_minute`, `mins_to_halftime`, `remaining_budget`, `density_log[]` |
 | `nexus_actions/{id}` | `stakeholder`, `action`, `priority`, `status`, `stadium_id`, `confidence` |
-| `fan_profiles/{uid}` | `fcm_token`, `stadium_id` |
+| `fan_profiles/{uid}` | `fcm_token`, `stadium_id`, `section`, `tier`, `seat`, `gate`, `zone_id` |
 | `operators/{uid}` | `role` ("admin"\|"viewer"), `stadiumId` |
+| `nexus_state/engine` | `last_call`, `last_budget_warning`, `paused`, `paused_at` |
+| `historical_patterns/{stadiumId}` | `patterns[]` (label, description, outcome) — fed to Gemini for grounding |
 
 ### Key Engine Constraints
 
+- **Pause kill-switch:** `nexus_state/engine.paused = true` short-circuits the engine *and* both simulator crons. Toggled from the OpsDashboard "Pause AI" button.
 - **Gemini throttle:** 25s minimum between calls (`nexus_state/engine.last_call`). Force-bypass with `{ force: true }`.
 - **Budget guard:** If `remaining_budget ≤ 0`, engine logs a system warning and zeros out fan incentive before writing.
 - **Gemini fallback:** 1 retry at 500ms delay, then `buildFallbackDecision()` (rule-based).
 - **Fan nudge budget:** `incentive_inr × 500` fans deducted per dispatch.
 - **Human review:** Actions with `priority ≥ 4` go to `status:"pending"` → ApprovalQueue auto-escalates after 60s.
+- **Historical grounding:** Engine reads `historical_patterns/{stadiumId}` and injects past-match summaries into the Gemini prompt.
 
 ## Environment Variables
 
@@ -107,3 +111,44 @@ Service worker at `public/firebase-messaging-sw.js` handles background FCM. PWA 
 ## Styling
 
 Inline styles with CSS custom properties (defined in `src/index.css` `:root`). Tailwind 4 is available but used minimally — prefer the existing `--bg-*`, `--accent`, `--text-*`, `--success/warning/danger` tokens and shared classes (`.card`, `.badge-*`, `.btn-primary`, `.stat-card`, `.section-label`).
+
+---
+
+## v2.5 — Implemented in this iteration
+
+### Performance
+- Removed the 30s `setTick` interval in `OpsDashboard` that was forcing a full-tree re-render every half minute.
+- `StadiumMap` is now `memo()`-wrapped with a custom `densitiesEqual` comparator — Google Maps polygons no longer re-tint when only the action feed updates.
+- `ImpactChart` is `memo()`-wrapped and its derived series are `useMemo`'d against `density_log.length`.
+- `mapDensities` in `OpsDashboard` is `useMemo`'d so a stable reference is passed to `StadiumMap`.
+
+### Operator kill-switch + emergency broadcast
+- New "Pause AI" toggle in the Operator Override panel writes `nexus_state/engine.paused`. `runNexusEngine` short-circuits when paused; both simulator crons also skip writes.
+- New "Emergency" broadcast button posts `{ emergencyBroadcast: true }` to `nexusTrigger`. The function fans out via FCM to all `fan_profiles` for the stadium and logs a P5 system action to the feed.
+
+### Historical patterns grounding
+- `runNexusEngine` now reads `historical_patterns/{stadiumId}` in parallel with stadium/crowd/match state.
+- `buildNexusPrompt` accepts an optional `historicalPatterns` arg and injects a `HISTORICAL PATTERNS` block into the Gemini prompt when present.
+- Seed via `node scripts/seedHistoricalPatterns.cjs`.
+
+### Cron split (cost control)
+- `crowdSimulatorCron` no longer holds a function alive for 30s via `setTimeout`.
+- Two separate scheduled functions now run: `crowdSimulatorCron` (top of minute) and `crowdSimulatorCronOffset` (still uses a small 30s delay for the half-minute mark — Cloud Scheduler granularity is 1m).
+- Both check `isEnginePaused()` before writing.
+
+### Fan app realism
+- `FanApp` now loads/seeds `fan_profiles/{uid}` with a default seat (section, tier, seat, gate, zone_id). Seat card reads from this profile instead of hardcoded strings.
+- The duplicate fan-actions Firestore listener is gone — there's now a single subscription that filters by `target_zone === fanProfile.zone_id`.
+- "Your Zone — live" card shows the live density % for the fan's own zone, color-coded against thresholds.
+- Voucher QR is rendered inside the nudge card via `api.qrserver.com` (zero new deps). Payload encodes `{ uid, zone, inr, ts }`.
+
+### Accessibility
+- `aria-label` added to override buttons, pause toggle, emergency button, fan dismiss, fan tab nav.
+- `aria-pressed` on fan tab buttons.
+
+## Outstanding (deferred to v3 — see `buildv3.md`)
+- `nexusTrigger` HTTP endpoint is **still unauthenticated** — needs Firebase ID token verification.
+- Zero project-level tests.
+- QR generation still uses external service; v3 should swap to `qrcode.react`.
+- Weather API + ticket system integration (mocked in screenshots, not built).
+- Server-signed voucher payloads (currently client-built, easily forgeable).

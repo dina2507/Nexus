@@ -18,9 +18,16 @@ const model = genAI.getGenerativeModel({
 const THROTTLE_MS = 25_000;
 
 async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {}) {
-  // 0. Throttle — skip if called within the last THROTTLE_MS milliseconds
+  // 0a. Pause guard — operator kill switch from the dashboard
+  const stateRef = db.doc('nexus_state/engine');
+  const stateSnap = await stateRef.get();
+  if (stateSnap.data()?.paused) {
+    console.log('NEXUS: Engine paused by operator — skipping');
+    return { skipped: true, reason: 'Paused' };
+  }
+
+  // 0b. Throttle — skip if called within the last THROTTLE_MS milliseconds
   if (!force) {
-    const stateRef = db.doc('nexus_state/engine');
     const canRun = await db.runTransaction(async (t) => {
       const stateDoc = await t.get(stateRef);
       const lastCall = stateDoc.data()?.last_call;
@@ -37,12 +44,13 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
     }
   }
 
-  // 1. Read state in parallel
-  const [stadiumDoc, crowdSnap, matchDoc] = await Promise.all([
+  // 1. Read state in parallel (now includes historical patterns)
+  const [stadiumDoc, crowdSnap, matchDoc, historyDoc] = await Promise.all([
     db.doc(`stadiums/${stadiumId}`).get(),
     db.collection('crowd_density')
       .where('stadium_id', '==', stadiumId).get(),
-    db.doc('match_events/current').get()
+    db.doc('match_events/current').get(),
+    db.doc(`historical_patterns/${stadiumId}`).get(),
   ]);
 
   const stadium = stadiumDoc.data();
@@ -54,6 +62,7 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   const crowdState = {};
   crowdSnap.forEach(doc => crowdState[doc.id] = doc.data());
   const matchState = matchDoc.data();
+  const historicalPatterns = historyDoc.exists ? historyDoc.data() : null;
 
   if (!matchState) {
     console.warn('No match_events/current document found');
@@ -96,7 +105,7 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
 
   // 3. Call Gemini 2.0 Flash
   console.log('NEXUS: Calling Gemini 2.0 Flash...');
-  const prompt = buildNexusPrompt(stadium, crowdState, matchState);
+  const prompt = buildNexusPrompt(stadium, crowdState, matchState, historicalPatterns);
 
   let decision;
   for (let attempt = 0; attempt <= 1; attempt++) {
