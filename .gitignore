@@ -42,3 +42,7 @@ build/
 # Project instructions
 gemini.md
 Instructions.md
+
+# Local tool config and sensitive data
+.claude/
+users.json
