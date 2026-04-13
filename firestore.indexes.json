@@ -19,6 +19,24 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "stakeholder",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "timestamp",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "nexus_actions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "stadium_id",
           "order": "ASCENDING"
         },

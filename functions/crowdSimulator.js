@@ -66,7 +66,15 @@ async function simulateCrowd(stadiumId, db) {
 
   await matchRef.update({
     match_minute: matchMinute + 0.5,
-    mins_to_halftime: Math.max(0, minsToHalftime - 0.5)
+    mins_to_halftime: Math.max(0, minsToHalftime - 0.5),
+    density_log: admin.firestore.FieldValue.arrayUnion({
+      t: parseFloat((matchMinute + 0.5).toFixed(1)),
+      north_stand: parseFloat(zones['north_stand'].toFixed(3)),
+      south_stand: parseFloat(zones['south_stand'].toFixed(3)),
+      east_block: parseFloat(zones['east_block'].toFixed(3)),
+      west_block: parseFloat(zones['west_block'].toFixed(3)),
+      concourse_a: parseFloat(zones['concourse_a'].toFixed(3)),
+    })
   });
 }
 

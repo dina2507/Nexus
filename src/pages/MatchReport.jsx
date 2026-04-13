@@ -5,90 +5,137 @@ import ImpactChart from '../components/ImpactChart';
 const stakeholderOrder = ['security', 'fans', 'concessions', 'medical', 'transport'];
 
 const stakeholderColors = {
-  security: '#E24B4A',
-  fans: '#378ADD',
-  concessions: '#EF9F27',
-  medical: '#A32D2D',
-  transport: '#639922'
+  security:    '#ef4444',
+  fans:        '#3b82f6',
+  concessions: '#f59e0b',
+  medical:     '#f97316',
+  transport:   '#10b981',
 };
 
 export default function MatchReport() {
   const { actions, stadium, matchState } = useNexus();
   const reportActions = [...actions].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-  const total = actions.length;
+  const total      = actions.length;
   const dispatched = actions.filter(a => a.status === 'dispatched').length;
-  const reviewed = actions.filter(a => a.status === 'approved' || a.status === 'rejected').length;
+  const reviewed   = actions.filter(a => a.status === 'approved' || a.status === 'rejected').length;
 
   const byStakeholder = stakeholderOrder.map((stakeholder) => {
-    const items = actions.filter(a => a.stakeholder === stakeholder);
+    const items   = actions.filter(a => a.stakeholder === stakeholder);
     const highest = items.reduce((max, item) => Math.max(max, item.priority || 0), 0);
     return { stakeholder, count: items.length, highest };
   });
 
+  const stats = [
+    ['Total AI decisions',    total],
+    ['Auto-dispatched',       dispatched],
+    ['Human reviewed',        reviewed],
+    ['Crowd risks prevented', '3 critical surges'],
+  ];
+
   return (
-    <div className="min-h-screen bg-[#050505] px-4 py-8 text-white">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <header className="glass-card p-6">
-          <div className="text-[10px] font-black uppercase tracking-[0.35em] text-cyan-400">Match Report</div>
-          <h1 className="mt-2 text-3xl font-black italic">CSK vs MI · Chepauk · IPL 2026</h1>
-          <p className="mt-2 text-sm text-white/50">{stadium.name} · {matchState?.score || '0/0'} · {matchState?.weather || 'Weather unavailable'}</p>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', padding: '32px 16px' }}>
+      <div style={{ maxWidth: '1024px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Header */}
+        <header className="card" style={{ padding: '24px' }}>
+          <span className="badge badge-slate" style={{ marginBottom: '10px' }}>Post-Match Report</span>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+            CSK vs MI · Chepauk · IPL 2026
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+            {stadium.name} · {matchState?.score || '0/0'} · {matchState?.weather || 'Weather unavailable'}
+          </p>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-4">
-          {[
-            ['Total AI decisions', total],
-            ['Auto-dispatched', dispatched],
-            ['Human reviewed', reviewed],
-            ['Crowd risk prevented', '3 critical surges'],
-          ].map(([label, value]) => (
-            <div key={label} className="glass-card p-5">
-              <div className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35">{label}</div>
-              <div className="mt-3 text-2xl font-black italic">{value}</div>
+        {/* Stats grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+          {stats.map(([label, value]) => (
+            <div key={label} className="card" style={{ padding: '18px 20px' }}>
+              <p className="section-label" style={{ margin: '0 0 8px' }}>{label}</p>
+              <p style={{ fontSize: '22px', fontWeight: 600, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                {value}
+              </p>
             </div>
           ))}
-        </section>
+        </div>
 
-        <section className="glass-card p-6 space-y-4">
-          <div className="text-xs font-black uppercase tracking-[0.25em] text-white/35">Stakeholder breakdown</div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {/* Stakeholder breakdown */}
+        <section className="card" style={{ padding: '20px' }}>
+          <p className="section-label" style={{ marginBottom: '14px' }}>Stakeholder breakdown</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
             {byStakeholder.map(({ stakeholder, count, highest }) => (
-              <div key={stakeholder} className="rounded-xl border border-white/8 p-4" style={{ background: `${stakeholderColors[stakeholder]}14` }}>
-                <div className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: stakeholderColors[stakeholder] }}>{stakeholder}</div>
-                <div className="mt-2 text-xl font-black">{count}</div>
-                <div className="text-xs text-white/40">Highest priority: {highest || '—'}</div>
+              <div
+                key={stakeholder}
+                className="card-hover"
+                style={{
+                  borderRadius: '10px', padding: '14px',
+                  borderLeft: `3px solid ${stakeholderColors[stakeholder]}`,
+                }}
+              >
+                <span className="badge" style={{
+                  background: stakeholderColors[stakeholder] + '18',
+                  color: stakeholderColors[stakeholder],
+                  border: `1px solid ${stakeholderColors[stakeholder]}30`,
+                  marginBottom: '10px',
+                  textTransform: 'capitalize',
+                }}>
+                  {stakeholder}
+                </span>
+                <p style={{ fontSize: '22px', fontWeight: 600, margin: '4px 0 2px',
+                  fontVariantNumeric: 'tabular-nums' }}>
+                  {count}
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+                  Highest priority: {highest || '—'}
+                </p>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="glass-card p-4">
-          <ImpactChart />
-        </section>
+        {/* Impact chart */}
+        <ImpactChart />
 
-        <section className="glass-card p-6">
-          <div className="text-xs font-black uppercase tracking-[0.25em] text-white/35 mb-4">Top actions</div>
-          <div className="space-y-3">
+        {/* Top actions */}
+        <section className="card" style={{ padding: '20px' }}>
+          <p className="section-label" style={{ marginBottom: '14px' }}>Top actions</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {reportActions.slice(0, 10).map((action) => (
-              <div key={action.id} className="rounded-xl border border-white/8 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: stakeholderColors[action.stakeholder] || '#999' }}>
+              <div
+                key={action.id}
+                className="card-hover"
+                style={{ borderRadius: '10px', padding: '14px' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span className="badge" style={{
+                      background: (stakeholderColors[action.stakeholder] || '#64748b') + '18',
+                      color: stakeholderColors[action.stakeholder] || '#64748b',
+                      border: `1px solid ${(stakeholderColors[action.stakeholder] || '#64748b')}30`,
+                      marginBottom: '6px', textTransform: 'capitalize',
+                    }}>
                       {action.stakeholder}
-                    </div>
-                    <div className="mt-1 text-sm font-medium text-white/90">{action.action}</div>
+                    </span>
+                    <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: 0, lineHeight: 1.5 }}>
+                      {action.action}
+                    </p>
                   </div>
-                  <div className="text-right text-[10px] uppercase tracking-[0.25em] text-white/35">
+                  <span className={`badge ${(action.priority || 0) >= 4 ? 'badge-red' : 'badge-slate'}`}
+                    style={{ flexShrink: 0 }}>
                     P{action.priority || 0}
-                  </div>
+                  </span>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        <footer className="pb-8 text-center text-[10px] font-black uppercase tracking-[0.35em] text-white/30">
-          Powered by Gemini 2.0 Flash · Google Cloud · Firebase
+        {/* Footer */}
+        <footer style={{ textAlign: 'center', paddingBottom: '24px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '0.03em' }}>
+            Powered by Gemini 2.0 Flash · Google Cloud · Firebase
+          </p>
         </footer>
       </div>
     </div>

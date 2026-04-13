@@ -4,6 +4,7 @@
  * and writes coordinated 5-stakeholder actions back to Firestore.
  */
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const admin = require('firebase-admin');
 const { buildNexusPrompt } = require('./nexusPrompt');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -12,7 +13,23 @@ const model = genAI.getGenerativeModel({
   generationConfig: { responseMimeType: 'application/json' }
 });
 
-async function runNexusEngine(stadiumId = 'chepauk', db) {
+// Minimum gap between Gemini calls — prevents 5 parallel calls from a
+// single 5-zone batch write by the crowd simulator.
+const THROTTLE_MS = 25_000;
+
+async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {}) {
+  // 0. Throttle — skip if called within the last THROTTLE_MS milliseconds
+  if (!force) {
+    const stateRef = db.doc('nexus_state/engine');
+    const stateDoc = await stateRef.get();
+    const lastCall = stateDoc.data()?.last_call;
+    if (lastCall && (Date.now() - new Date(lastCall).getTime()) < THROTTLE_MS) {
+      console.log('NEXUS: Throttled — called too recently, skipping');
+      return { skipped: true, reason: 'Throttled' };
+    }
+    await stateRef.set({ last_call: new Date().toISOString() }, { merge: true });
+  }
+
   // 1. Read state in parallel
   const [stadiumDoc, crowdSnap, matchDoc] = await Promise.all([
     db.doc(`stadiums/${stadiumId}`).get(),
@@ -46,20 +63,43 @@ async function runNexusEngine(stadiumId = 'chepauk', db) {
     return { skipped: true, reason: 'No zones at threshold' };
   }
 
+  // 2.5 Budget depletion guard
+  const budgetExhausted = (matchState.remaining_budget || 0) <= 0;
+  if (budgetExhausted) {
+    console.warn('NEXUS: Fan incentive budget exhausted — fan nudges will be disabled');
+    await db.collection('nexus_actions').add({
+      stakeholder: 'system',
+      action: 'Fan incentive budget exhausted — all remaining nudges will be non-incentivized.',
+      priority: 2,
+      status: 'dispatched',
+      stadium_id: stadiumId,
+      timestamp: new Date().toISOString(),
+      risk_assessment: 'Budget depleted',
+      confidence: 1.0,
+    });
+  }
+
   // 3. Call Gemini 2.0 Flash
   console.log('NEXUS: Calling Gemini 2.0 Flash...');
   const prompt = buildNexusPrompt(stadium, crowdState, matchState);
 
   let decision;
-  try {
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    decision = JSON.parse(responseText);
-    console.log('NEXUS: Gemini response received, confidence:', decision.confidence);
-  } catch (err) {
-    console.error('NEXUS: Gemini call failed, using fallback', err.message);
-    // Fallback rule-based response if Gemini is slow or fails
-    decision = buildFallbackDecision(crowdState, matchState, stadium);
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      if (attempt === 1) await new Promise(r => setTimeout(r, 500));
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      decision = JSON.parse(responseText);
+      console.log('NEXUS: Gemini response received, confidence:', decision.confidence);
+      break;
+    } catch (err) {
+      if (attempt === 0) {
+        console.warn('NEXUS: Gemini attempt 1 failed, retrying in 500ms...', err.message);
+      } else {
+        console.error('NEXUS: Gemini call failed after retry, using fallback', err.message);
+        decision = buildFallbackDecision(crowdState, matchState, stadium);
+      }
+    }
   }
 
   // 4. Write all actions atomically
@@ -83,6 +123,22 @@ async function runNexusEngine(stadiumId = 'chepauk', db) {
 
   await batch.commit();
   console.log('NEXUS: Actions written to Firestore');
+
+  // Override fan incentive if budget is exhausted
+  if (budgetExhausted && decision.actions?.fans) {
+    decision.actions.fans.incentive_inr = 0;
+    decision.actions.fans.action = '';
+  }
+
+  // Deduct incentive budget — estimate 500 fans nudged per dispatch
+  const fanAction = decision.actions?.fans;
+  if (fanAction?.incentive_inr > 0 && fanAction.action) {
+    await db.doc('match_events/current').update({
+      remaining_budget: admin.firestore.FieldValue.increment(-(fanAction.incentive_inr * 500))
+    });
+    console.log(`NEXUS: Budget decremented by ₹${fanAction.incentive_inr * 500}`);
+  }
+
   return { success: true, actions: Object.keys(decision.actions).length, decision };
 }
 

@@ -1,76 +1,75 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-/**
- * ZoneDensityBars — Animated density bars for each stadium zone.
- * Props:
- *   zones: array of zone objects from chepauk.json
- *   densities: { zoneId: { pct: 0.87, ... } }
- *   crushThreshold: number (e.g. 0.82)
- */
 const ZoneDensityBars = ({ zones = [], densities = {}, crushThreshold = 0.82 }) => {
   return (
-    <div className="space-y-4">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {zones.map(zone => {
         const density = densities[zone.id]?.pct || 0;
-        const isCritical = density >= crushThreshold;
+        const isCritical  = density >= crushThreshold;
         const isEmergency = density >= 0.93;
-        const percentage = (density * 100).toFixed(1);
+        const percentage  = (density * 100).toFixed(0);
+
+        const color = isEmergency ? 'var(--danger-deep)'
+                    : isCritical  ? 'var(--danger)'
+                    : density >= 0.70 ? 'var(--warning)'
+                    : 'var(--success)';
+
+        const dotClass = isEmergency || isCritical ? 'danger'
+                       : density >= 0.70 ? 'warning' : 'live';
+
+        const barGradient = isEmergency
+          ? 'linear-gradient(90deg, #ef4444, #dc2626)'
+          : isCritical
+            ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+            : density >= 0.70
+              ? 'linear-gradient(90deg, #10b981, #f59e0b)'
+              : 'linear-gradient(90deg, #10b981, #34d399)';
 
         return (
-          <div key={zone.id} className="space-y-1.5">
-            <div className="flex justify-between items-baseline text-xs font-bold uppercase tracking-tighter">
-              <span className="flex items-center gap-2">
-                <span
-                  className="w-2 h-2 rounded-full inline-block"
-                  style={{
-                    backgroundColor: isEmergency ? '#A32D2D' : isCritical ? '#E24B4A' : density >= 0.70 ? '#EF9F27' : '#639922',
-                    boxShadow: isEmergency ? '0 0 8px #A32D2D' : isCritical ? '0 0 8px #E24B4A' : 'none'
-                  }}
-                />
-                {zone.label || zone.id.replace('_', ' ')}
+          <div key={zone.id}>
+            {/* Label row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className={`status-dot ${dotClass}`} />
+                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                  {zone.label || zone.id.replace(/_/g, ' ')}
+                </span>
               </span>
-              <span
-                className="tabular-nums"
-                style={{
-                  color: isEmergency ? '#A32D2D' : isCritical ? '#E24B4A' : density >= 0.70 ? '#EF9F27' : 'var(--neon-cyan, #00f3ff)'
-                }}
-              >
+              <span style={{ fontSize: '13px', fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>
                 {percentage}%
               </span>
             </div>
-            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden relative">
+
+            {/* Bar track */}
+            <div className="density-track">
               {/* Crush threshold marker */}
               <div
-                className="absolute top-0 h-full w-px bg-white/30 z-10"
-                style={{ left: `${crushThreshold * 100}%` }}
                 title={`Crush threshold: ${(crushThreshold * 100).toFixed(0)}%`}
+                style={{
+                  position: 'absolute', top: '-3px', bottom: '-3px', width: '2px',
+                  background: 'rgba(245,158,11,0.45)', borderRadius: '1px',
+                  left: `${crushThreshold * 100}%`, zIndex: 1,
+                }}
               />
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(density * 100, 100)}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
-                className="h-full rounded-full"
                 style={{
-                  background: isEmergency
-                    ? 'linear-gradient(90deg, #E24B4A, #A32D2D)'
-                    : isCritical
-                      ? 'linear-gradient(90deg, #EF9F27, #E24B4A)'
-                      : density >= 0.70
-                        ? 'linear-gradient(90deg, #639922, #EF9F27)'
-                        : 'linear-gradient(90deg, #00f3ff, #639922)',
-                  boxShadow: isEmergency
-                    ? '0 0 12px rgba(163, 45, 45, 0.8)'
-                    : isCritical
-                      ? '0 0 10px rgba(226, 75, 74, 0.6)'
-                      : '0 0 8px rgba(0, 243, 255, 0.3)'
+                  height: '100%', borderRadius: '99px',
+                  background: barGradient,
                 }}
               />
             </div>
-            {/* Zone details row */}
-            <div className="flex justify-between text-[10px] text-white/30 font-medium">
+
+            {/* Gate / throughput row */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px',
+            }}>
               <span>Gates: {zone.gates?.join(', ') || '—'}</span>
-              <span>{zone.throughput_per_min || 0}/min throughput</span>
+              <span>{zone.throughput_per_min || 0}/min</span>
             </div>
           </div>
         );

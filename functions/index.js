@@ -54,7 +54,28 @@ exports.nexusOnCrowdUpdate = onDocumentUpdated(
  * POST { stadiumId, scenario } to run specific demo scenarios.
  */
 exports.nexusTrigger = onRequest({ cors: true }, async (req, res) => {
-  const { stadiumId = 'chepauk', scenario } = req.body;
+  const { stadiumId = 'chepauk', scenario, manualAction } = req.body;
+
+  // Operator manual override — skips AI engine entirely
+  if (manualAction) {
+    console.log(`NEXUS: Manual override — stakeholder: ${manualAction.stakeholder}`);
+    try {
+      await db.collection('nexus_actions').add({
+        stakeholder: manualAction.stakeholder,
+        action: manualAction.action,
+        priority: manualAction.priority || 3,
+        status: 'dispatched',
+        stadium_id: stadiumId,
+        timestamp: new Date().toISOString(),
+        risk_assessment: 'Manual operator override',
+        confidence: 1.0,
+      });
+      return res.json({ success: true, type: 'manual_override' });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
   console.log(`NEXUS: Manual trigger — scenario: ${scenario}`);
 
   try {
@@ -102,14 +123,14 @@ exports.nexusTrigger = onRequest({ cors: true }, async (req, res) => {
       return res.json({ success: true, scenario: 'reset', message: 'All zones reset to pre-match baseline' });
     }
 
-    // Run the AI engine after setting the scenario
-    const result = await runNexusEngine(stadiumId, db);
+    // Run the AI engine after setting the scenario — force bypasses throttle
+    const result = await runNexusEngine(stadiumId, db, { force: true });
 
     const fanAction = result?.decision?.actions?.fans;
     if (fanAction?.incentive_inr > 0) {
       await sendFanNudge({
         ...fanAction,
-        zone_label: fanAction.target_zone?.replace('_', ' ')
+        zone_label: fanAction.target_zone?.replaceAll('_', ' ')
       }, stadiumId);
     }
 

@@ -26,7 +26,7 @@ async function sendFanNudge(fanAction, stadiumId = 'chepauk') {
   const message = {
     tokens,
     notification: {
-      title: `NEXUS Alert — ${fanAction.zone_label || fanAction.target_zone || 'Chepauk'}`,
+      title: `NEXUS Alert — ${fanAction.zone_label || fanAction.target_zone?.replaceAll('_', ' ') || 'Chepauk'}`,
       body: fanAction.action,
     },
     data: {

@@ -12,7 +12,7 @@ function App() {
   return (
     <Router>
       <NexusProvider>
-        <div className="min-h-screen bg-black text-white selection:bg-cyan-500/30">
+        <div className="nexus-root">
           <Routes>
             <Route path="/" element={<ProtectedRoute><OpsDashboard /></ProtectedRoute>} />
             <Route path="/fan" element={<FanApp />} />
