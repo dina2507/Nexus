@@ -66,7 +66,8 @@ export function subscribePendingActions(stadiumId, callback) {
     collection(db, 'nexus_actions'),
     where('stadium_id', '==', stadiumId),
     where('status', '==', 'pending'),
-    orderBy('timestamp', 'desc')
+    orderBy('timestamp', 'desc'),
+    limit(5)
   );
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));

@@ -115,144 +115,83 @@ const StadiumMap = ({ crowdDensity = {} }) => {
     }
   }, [crowdDensity]);
 
-  /* ─── SVG Fallback ─── */
-  if (mapMode === 'fallback') {
-    return (
-      <div style={{ width: '100%', background: '#0d1526', borderRadius: '12px', overflow: 'hidden' }}>
-        {/* Header */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '12px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-        }}>
-          <div>
-            <span className="section-label">Chepauk Zone Heatmap</span>
-            {mapError && (
-              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px' }}>
-                SVG mode — {mapError}
-              </div>
-            )}
+  return (
+    <div style={{ position: 'relative', width: '100%', minHeight: '300px', borderRadius: '12px', overflow: 'hidden', background: '#0d1526' }}>
+      {/* ─── Google Maps Container ─── */}
+      <div 
+        ref={mapRef}
+        style={{ 
+          width: '100%', 
+          height: '380px', 
+          visibility: mapMode === 'google' ? 'visible' : 'hidden',
+          position: 'absolute',
+          top: 0,
+          left: 0
+        }} 
+      />
+
+      {/* ─── Loading State Overlay ─── */}
+      {mapMode === 'loading' && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d1526', zIndex: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%',
+              border: '2px solid rgba(59,130,246,0.25)', borderTopColor: '#3b82f6',
+              animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ fontSize: '11px', color: '#475569', letterSpacing: '0.04em' }}>Loading map…</span>
           </div>
-          <span className="badge badge-slate">SVG</span>
         </div>
+      )}
 
-        {/* SVG stadium view */}
-        <div style={{ padding: '16px 16px 8px' }}>
-          <svg viewBox="0 0 400 280" width="100%" style={{ display: 'block' }}>
-            <defs>
-              <radialGradient id="field-grad" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#1a3a1a" />
-                <stop offset="100%" stopColor="#0d1a0d" />
-              </radialGradient>
-            </defs>
-
-            {/* Stadium outer background */}
-            <rect x="0" y="0" width="400" height="280" fill="#0d1526" />
-
-            {/* Zone polygons */}
+      {/* ─── SVG Fallback Overlay ─── */}
+      {mapMode === 'fallback' && (
+        <div style={{ position: 'absolute', inset: 0, background: '#0d1526', overflow: 'auto', zIndex: 10, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div>
+              <span className="section-label">Chepauk Zone Heatmap</span>
+              {mapError && <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '3px' }}>SVG mode — {mapError}</div>}
+            </div>
+            <span className="badge badge-slate">SVG</span>
+          </div>
+          <div style={{ flex: 1, padding: '16px 16px 8px', display: 'flex', alignItems: 'center' }}>
+            <svg viewBox="0 0 400 280" width="100%" style={{ display: 'block', maxHeight: '100%' }}>
+              <defs>
+                <radialGradient id="field-grad" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stopColor="#1a3a1a" />
+                  <stop offset="100%" stopColor="#0d1a0d" />
+                </radialGradient>
+              </defs>
+              <rect x="0" y="0" width="400" height="280" fill="#0d1526" />
+              {Object.entries(STADIUM_ZONES).map(([zoneId, zone]) => {
+                const pct = crowdDensity[zoneId] ?? 0;
+                const isSelected = selectedZone === zoneId;
+                return (
+                  <g key={zoneId} onClick={() => setSelectedZone(isSelected ? null : zoneId)} style={{ cursor: 'pointer' }}>
+                    <polygon points={zone.points} fill={densityToFill(pct)} stroke={isSelected ? '#3b82f6' : densityToColor(pct)} strokeWidth={isSelected ? 2 : 0.8} strokeOpacity={isSelected ? 1 : 0.5} style={{ transition: 'fill 0.4s ease, stroke 0.2s ease' }} />
+                    <text x={zone.cx} y={zone.cy - 4} textAnchor="middle" fontSize="13" fontWeight="700" fill={densityToColor(pct)} fontFamily="Outfit,sans-serif" style={{ pointerEvents: 'none' }}>{(pct * 100).toFixed(0)}%</text>
+                    <text x={zone.cx} y={zone.cy + 11} textAnchor="middle" fontSize="8" fontWeight="500" fill="rgba(255,255,255,0.30)" fontFamily="Outfit,sans-serif" style={{ pointerEvents: 'none' }}>{zone.label.toUpperCase()}</text>
+                  </g>
+                );
+              })}
+              <rect x="104" y="88" width="192" height="104" fill="url(#field-grad)" rx="4" />
+              <rect x="166" y="112" width="68" height="56" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" rx="2" />
+              <text x="200" y="144" textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.30)" fontWeight="600" fontFamily="Outfit,sans-serif">PITCH</text>
+            </svg>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '6px', padding: '0 16px 16px' }}>
             {Object.entries(STADIUM_ZONES).map(([zoneId, zone]) => {
               const pct = crowdDensity[zoneId] ?? 0;
               const isSelected = selectedZone === zoneId;
               return (
-                <g key={zoneId}
-                  onClick={() => setSelectedZone(isSelected ? null : zoneId)}
-                  style={{ cursor: 'pointer' }}>
-                  <polygon
-                    points={zone.points}
-                    fill={densityToFill(pct)}
-                    stroke={isSelected ? '#3b82f6' : densityToColor(pct)}
-                    strokeWidth={isSelected ? 2 : 0.8}
-                    strokeOpacity={isSelected ? 1 : 0.5}
-                    style={{ transition: 'fill 0.4s ease, stroke 0.2s ease' }}
-                  />
-                  {/* Density % label */}
-                  <text
-                    x={zone.cx} y={zone.cy - 4}
-                    textAnchor="middle"
-                    fontSize="13" fontWeight="700"
-                    fill={densityToColor(pct)}
-                    fontFamily="Outfit,sans-serif"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {(pct * 100).toFixed(0)}%
-                  </text>
-                  {/* Zone name label */}
-                  <text
-                    x={zone.cx} y={zone.cy + 11}
-                    textAnchor="middle"
-                    fontSize="8" fontWeight="500"
-                    fill="rgba(255,255,255,0.30)"
-                    fontFamily="Outfit,sans-serif"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {zone.label.toUpperCase()}
-                  </text>
-                </g>
+                <button key={zoneId} onClick={() => setSelectedZone(isSelected ? null : zoneId)} style={{ background: isSelected ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isSelected ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '8px', padding: '8px 6px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  <div style={{ fontSize: '9px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{zone.label}</div>
+                  <div style={{ marginTop: '3px', fontSize: '14px', fontWeight: 700, color: densityToColor(pct), fontVariantNumeric: 'tabular-nums' }}>{(pct * 100).toFixed(0)}%</div>
+                </button>
               );
             })}
-
-            {/* Playing field */}
-            <rect x="104" y="88" width="192" height="104" fill="url(#field-grad)" rx="4" />
-            {/* Pitch */}
-            <rect x="166" y="112" width="68" height="56" fill="none"
-              stroke="rgba(255,255,255,0.12)" strokeWidth="1" rx="2" />
-            <text x="200" y="144" textAnchor="middle" fontSize="9"
-              fill="rgba(255,255,255,0.30)" fontWeight="600" fontFamily="Outfit,sans-serif">
-              PITCH
-            </text>
-          </svg>
+          </div>
         </div>
-
-        {/* Zone buttons */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '6px', padding: '0 16px 16px' }}>
-          {Object.entries(STADIUM_ZONES).map(([zoneId, zone]) => {
-            const pct = crowdDensity[zoneId] ?? 0;
-            const isSelected = selectedZone === zoneId;
-            return (
-              <button
-                key={zoneId}
-                onClick={() => setSelectedZone(isSelected ? null : zoneId)}
-                style={{
-                  background: isSelected ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isSelected ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.07)'}`,
-                  borderRadius: '8px', padding: '8px 6px', textAlign: 'center',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ fontSize: '9px', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-                  {zone.label}
-                </div>
-                <div style={{ marginTop: '3px', fontSize: '14px', fontWeight: 700,
-                  color: densityToColor(pct), fontVariantNumeric: 'tabular-nums' }}>
-                  {(pct * 100).toFixed(0)}%
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  /* ─── Loading state ─── */
-  if (mapMode === 'loading') {
-    return (
-      <div style={{ width: '100%', minHeight: '300px', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', background: '#0d1526', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '24px', height: '24px', borderRadius: '50%',
-            border: '2px solid rgba(59,130,246,0.25)', borderTopColor: '#3b82f6',
-            animation: 'spin 0.8s linear infinite' }} />
-          <span style={{ fontSize: '11px', color: '#475569', letterSpacing: '0.04em' }}>Loading map…</span>
-        </div>
-      </div>
-    );
-  }
-
-  /* ─── Google Maps ─── */
-  return (
-    <div ref={mapRef}
-      style={{ width: '100%', height: '100%', minHeight: '300px', borderRadius: '12px', overflow: 'hidden' }} />
+      )}
+    </div>
   );
 };
 

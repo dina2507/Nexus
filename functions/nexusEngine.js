@@ -21,13 +21,20 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   // 0. Throttle — skip if called within the last THROTTLE_MS milliseconds
   if (!force) {
     const stateRef = db.doc('nexus_state/engine');
-    const stateDoc = await stateRef.get();
-    const lastCall = stateDoc.data()?.last_call;
-    if (lastCall && (Date.now() - new Date(lastCall).getTime()) < THROTTLE_MS) {
+    const canRun = await db.runTransaction(async (t) => {
+      const stateDoc = await t.get(stateRef);
+      const lastCall = stateDoc.data()?.last_call;
+      if (lastCall && (Date.now() - new Date(lastCall).getTime()) < THROTTLE_MS) {
+        return false;
+      }
+      t.set(stateRef, { last_call: new Date().toISOString() }, { merge: true });
+      return true;
+    });
+
+    if (!canRun) {
       console.log('NEXUS: Throttled — called too recently, skipping');
       return { skipped: true, reason: 'Throttled' };
     }
-    await stateRef.set({ last_call: new Date().toISOString() }, { merge: true });
   }
 
   // 1. Read state in parallel
@@ -66,17 +73,25 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   // 2.5 Budget depletion guard
   const budgetExhausted = (matchState.remaining_budget || 0) <= 0;
   if (budgetExhausted) {
-    console.warn('NEXUS: Fan incentive budget exhausted — fan nudges will be disabled');
-    await db.collection('nexus_actions').add({
-      stakeholder: 'system',
-      action: 'Fan incentive budget exhausted — all remaining nudges will be non-incentivized.',
-      priority: 2,
-      status: 'dispatched',
-      stadium_id: stadiumId,
-      timestamp: new Date().toISOString(),
-      risk_assessment: 'Budget depleted',
-      confidence: 1.0,
-    });
+    const stateRef = db.doc('nexus_state/engine');
+    const stateDoc = await stateRef.get();
+    const lastWarning = stateDoc.data()?.last_budget_warning;
+    
+    // Deduplicate: Only write this system action once every 30 minutes
+    if (!lastWarning || (Date.now() - new Date(lastWarning).getTime()) > 30 * 60 * 1000) {
+      console.warn('NEXUS: Fan incentive budget exhausted — emitting system warning');
+      await db.collection('nexus_actions').add({
+        stakeholder: 'system',
+        action: 'Fan incentive budget exhausted — all remaining nudges will be non-incentivized.',
+        priority: 2,
+        status: 'dispatched',
+        stadium_id: stadiumId,
+        timestamp: new Date().toISOString(),
+        risk_assessment: 'Budget depleted',
+        confidence: 1.0,
+      });
+      await stateRef.set({ last_budget_warning: new Date().toISOString() }, { merge: true });
+    }
   }
 
   // 3. Call Gemini 2.0 Flash
