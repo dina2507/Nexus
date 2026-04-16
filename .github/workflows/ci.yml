@@ -1,0 +1,39 @@
+name: NEXUS CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Root Dependencies
+      run: npm ci
+
+    - name: Lint Root
+      run: npm run lint --if-present
+
+    - name: Test Frontend (Vitest)
+      run: npm test
+
+    - name: Build Frontend
+      run: npm run build
+
+    - name: Install Functions Dependencies
+      working-directory: ./functions
+      run: npm ci
+
+    - name: Test Cloud Functions (Jest)
+      working-directory: ./functions
+      run: npm test

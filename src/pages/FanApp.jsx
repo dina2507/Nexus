@@ -1,7 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNexus } from '../context/NexusContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Ticket, Bell, Navigation, Activity } from 'lucide-react';
+import { Navigation, Activity, Ticket, Bell } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { fetchWithAuth } from '../components/auth';
+import FanNavigateTab from '../components/FanNavigateTab';
+import FanLiveTab from '../components/FanLiveTab';
+import FanSeatTab from '../components/FanSeatTab';
 import { getToken, onMessage } from 'firebase/messaging';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
@@ -20,24 +25,10 @@ const DEFAULT_SEAT = {
   zone_id: 'north_stand',
 };
 
-function buildVoucherPayload(action, uid) {
-  return JSON.stringify({
-    v: 1,
-    uid: uid || 'anon',
-    zone: action.target_zone || '',
-    inr: action.incentive_inr || 0,
-    ts: Date.now(),
-  });
-}
 
-function qrImageUrl(payload) {
-  // External QR service avoids pulling in a dependency. Antigravity can swap
-  // this for a client-side library (qrcode.react) in v3 — see buildv3.md.
-  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=2&data=${encodeURIComponent(payload)}`;
-}
 
 const FanApp = () => {
-  const { matchState, densities } = useNexus();
+  const { matchState, densities, actions, stadium } = useNexus();
   const [notification, setNotification] = useState(null);
   const [activeTab, setActiveTab] = useState('navigate');
   const [fanProfile, setFanProfile] = useState(null);
@@ -96,6 +87,7 @@ const FanApp = () => {
             body: payload.notification?.body || 'New fan nudge available',
             target_zone: payload.data?.target_zone || '',
             incentive_inr: Number(payload.data?.incentive_inr || 0),
+            actionId: payload.data?.action_id || null,
           });
         });
       }
@@ -122,6 +114,7 @@ const FanApp = () => {
     return onSnapshot(q, (snap) => {
       if (snap.empty) return;
       const action = snap.docs[0].data();
+      const actionId = snap.docs[0].id;
       // Only surface if the action targets this fan's zone OR is a global push
       if (action.target_zone && action.target_zone !== fanProfile.zone_id) return;
       setNotification({
@@ -129,15 +122,38 @@ const FanApp = () => {
         body: action.action,
         target_zone: action.target_zone || '',
         incentive_inr: action.incentive_inr || 0,
+        actionId,
       });
     });
   }, [fanProfile?.zone_id]);
 
-  // Voucher QR is stable for the current notification
-  const voucherPayload = useMemo(
-    () => notification ? buildVoucherPayload(notification, uid) : null,
-    [notification, uid]
-  );
+  const [voucherPayload, setVoucherPayload] = useState(null);
+
+  useEffect(() => {
+    if (!notification || notification.incentive_inr <= 0 || !notification.actionId || !uid) {
+      setVoucherPayload(null);
+      return;
+    }
+    
+    // Fetch server-signed voucher
+    const fetchSignedVoucher = async () => {
+      try {
+        const resp = await fetchWithAuth(`${import.meta.env.VITE_FUNCTIONS_URL}/mintVoucher`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actionId: notification.actionId, uid }),
+        });
+        const data = await resp.json();
+        if (data.token) {
+          setVoucherPayload(data.token); // The JWT itself
+        }
+      } catch (err) {
+        console.error('Failed to mint voucher:', err);
+      }
+    };
+    
+    fetchSignedVoucher();
+  }, [notification?.actionId, notification?.incentive_inr, uid]);
 
   const myZoneDensity = fanProfile?.zone_id ? (densities[fanProfile.zone_id]?.pct || 0) : 0;
 
@@ -181,56 +197,27 @@ const FanApp = () => {
       {/* Content */}
       <div style={{ flex: 1, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
-        {/* Seat card — now driven by fan_profiles */}
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-            <div style={{
-              padding: '8px', background: 'var(--accent-dim)',
-              borderRadius: '8px', display: 'flex',
-            }}>
-              <Ticket style={{ color: 'var(--accent)' }} size={18} />
-            </div>
-            <span className="badge badge-slate">Entry: {fanProfile?.gate || '—'}</span>
-          </div>
-          <p style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 2px', letterSpacing: '-0.01em' }}>
-            Seat {fanProfile?.seat || '—'}
-          </p>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-            {fanProfile?.section || '—'} · {fanProfile?.tier || '—'}
-          </p>
-        </div>
-
-        {/* Your zone density — live from Firestore */}
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
-            <MapPin size={12} style={{ color: 'var(--accent)' }} />
-            <span className="section-label">Your Zone — live</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0 0 3px',
-                fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {fanProfile?.section || 'Your Section'}
-              </p>
-              <p style={{ fontSize: '24px', fontWeight: 600, margin: 0,
-                color: myZoneDensity >= 0.82 ? 'var(--danger)' : myZoneDensity >= 0.70 ? 'var(--warning)' : 'var(--success)' }}>
-                {(myZoneDensity * 100).toFixed(0)}
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}>%</span>
-              </p>
-            </div>
-            <div>
-              <p style={{ fontSize: '10px', color: 'var(--text-muted)', margin: '0 0 3px',
-                fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Gate {fanProfile?.gate || '—'} wait
-              </p>
-              <p style={{ fontSize: '24px', fontWeight: 600, margin: 0,
-                color: myZoneDensity >= 0.82 ? 'var(--danger)' : 'var(--success)' }}>
-                {Math.max(1, Math.round(myZoneDensity * 8))}
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 400 }}> min</span>
-              </p>
-            </div>
-          </div>
-        </div>
+        {activeTab === 'navigate' && (
+          <FanNavigateTab 
+            fanProfile={fanProfile} 
+            myZoneDensity={myZoneDensity} 
+            stadium={stadium} 
+            densities={densities} 
+          />
+        )}
+        {activeTab === 'live' && (
+          <FanLiveTab 
+            matchState={matchState} 
+            actions={actions} 
+            fanProfile={fanProfile} 
+          />
+        )}
+        {activeTab === 'ticket' && (
+          <FanSeatTab 
+            fanProfile={fanProfile} 
+            uid={uid} 
+          />
+        )}
 
       </div>
 
@@ -288,11 +275,12 @@ const FanApp = () => {
                     border: '1px solid rgba(59,130,246,0.15)',
                     borderRadius: '8px',
                   }}>
-                    <img
-                      src={qrImageUrl(voucherPayload)}
-                      alt={`Voucher QR code for ₹${notification.incentive_inr}`}
-                      width={72}
-                      height={72}
+                    <QRCodeSVG
+                      value={voucherPayload}
+                      size={72}
+                      bgColor="#ffffff"
+                      fgColor="#0a0f1e"
+                      level="M"
                       style={{ borderRadius: '6px', background: 'white', padding: '4px', flexShrink: 0 }}
                     />
                     <div style={{ minWidth: 0 }}>
@@ -333,7 +321,7 @@ const FanApp = () => {
         display: 'flex', alignItems: 'center', justifyContent: 'space-around',
         padding: '0 8px', flexShrink: 0,
       }}>
-        {tabs.map(({ id, label, Icon }) => (
+        {tabs.map(({ id, label, Icon: TabIcon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -346,7 +334,7 @@ const FanApp = () => {
               transition: 'color 0.15s',
             }}
           >
-            <Icon size={20} />
+            <TabIcon size={20} />
             <span style={{ fontSize: '10px', fontWeight: 600 }}>{label}</span>
           </button>
         ))}

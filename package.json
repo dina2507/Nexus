@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -18,14 +21,19 @@
     "firebase": "^11.10.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.468.0",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.3",
+    "react-to-pdf": "^3.2.2",
     "tailwind-merge": "^2.6.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.27",
     "eslint": "^9.15.0",
@@ -33,9 +41,19 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "firebase-admin": "^13.8.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.0.2",
+    "lint-staged": "^16.4.0",
     "postcss": "^8.5.9",
     "tailwindcss": "^4.2.2",
     "vite": "^6.0.1",
-    "vite-plugin-pwa": "^0.21.2"
+    "vite-plugin-pwa": "^0.21.2",
+    "vitest": "^4.1.4"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "npm run lint --if-present",
+      "npm run test --passWithNoTests"
+    ]
   }
 }

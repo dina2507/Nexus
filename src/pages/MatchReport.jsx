@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNexus } from '../context/NexusContext';
 import ImpactChart from '../components/ImpactChart';
+import { usePDF } from 'react-to-pdf';
 
 const stakeholderOrder = ['security', 'fans', 'concessions', 'medical', 'transport'];
 
@@ -14,11 +15,18 @@ const stakeholderColors = {
 
 export default function MatchReport() {
   const { actions, stadium, matchState } = useNexus();
+  const { toPDF, targetRef } = usePDF({ filename: 'nexus-match-report.pdf' });
   const reportActions = [...actions].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-  const total      = actions.length;
-  const dispatched = actions.filter(a => a.status === 'dispatched').length;
-  const reviewed   = actions.filter(a => a.status === 'approved' || a.status === 'rejected').length;
+  const total         = actions.length;
+  const dispatched    = actions.filter(a => a.status === 'dispatched').length;
+  const reviewed      = actions.filter(a => a.status === 'approved' || a.status === 'rejected').length;
+  const criticalCount = actions.filter(a => (a.priority || 0) >= 4).length;
+
+  const withConfidence = actions.filter(a => typeof a.confidence === 'number');
+  const avgConfidence  = withConfidence.length > 0
+    ? (withConfidence.reduce((s, a) => s + a.confidence, 0) / withConfidence.length * 100).toFixed(0)
+    : '—';
 
   const byStakeholder = stakeholderOrder.map((stakeholder) => {
     const items   = actions.filter(a => a.stakeholder === stakeholder);
@@ -26,11 +34,22 @@ export default function MatchReport() {
     return { stakeholder, count: items.length, highest };
   });
 
+  const maxBudget = stadium?.incentive_config?.max_budget_per_match_inr || 200000;
+  const spent     = maxBudget - (matchState?.remaining_budget ?? maxBudget);
+
+  // Top 3 by impact: prefer P4/P5 dispatched actions, then highest priority overall
+  const top3 = [...actions]
+    .filter(a => a.status === 'dispatched' || a.status === 'approved')
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
+    .slice(0, 3);
+
   const stats = [
-    ['Total AI decisions',    total],
-    ['Auto-dispatched',       dispatched],
-    ['Human reviewed',        reviewed],
-    ['Crowd risks prevented', '3 critical surges'],
+    ['Total AI decisions',   total],
+    ['Auto-dispatched',      dispatched],
+    ['Critical actions (P4+)', criticalCount],
+    ['Avg AI confidence',    avgConfidence !== '—' ? `${avgConfidence}%` : '—'],
+    ['Human reviewed',       reviewed],
+    ['Budget utilized',      `₹${Math.max(0, spent).toLocaleString()}`],
   ];
 
   return (
@@ -38,18 +57,25 @@ export default function MatchReport() {
       <div style={{ maxWidth: '1024px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
         {/* Header */}
-        <header className="card" style={{ padding: '24px' }}>
-          <span className="badge badge-slate" style={{ marginBottom: '10px' }}>Post-Match Report</span>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-            CSK vs MI · Chepauk · IPL 2026
-          </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-            {stadium.name} · {matchState?.score || '0/0'} · {matchState?.weather || 'Weather unavailable'}
-          </p>
+        <header className="card" style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <span className="badge badge-slate" style={{ marginBottom: '10px' }}>Post-Match Report</span>
+            <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+              CSK vs MI · Chepauk · IPL 2026
+            </h1>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+              {stadium.name} · {matchState?.score || '0/0'} · {matchState?.weather || 'Weather unavailable'}
+            </p>
+          </div>
+          <button className="btn-primary" onClick={() => toPDF()} style={{ padding: '8px 16px' }}>
+            Export PDF
+          </button>
         </header>
 
+        <div ref={targetRef} style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'var(--bg-base)' }}>
+
         {/* Stats grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
           {stats.map(([label, value]) => (
             <div key={label} className="card" style={{ padding: '18px 20px' }}>
               <p className="section-label" style={{ margin: '0 0 8px' }}>{label}</p>
@@ -99,9 +125,9 @@ export default function MatchReport() {
 
         {/* Top actions */}
         <section className="card" style={{ padding: '20px' }}>
-          <p className="section-label" style={{ marginBottom: '14px' }}>Top actions</p>
+          <p className="section-label" style={{ marginBottom: '14px' }}>Top 3 Interventions by Impact</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {reportActions.slice(0, 10).map((action) => (
+            {(top3.length > 0 ? top3 : reportActions.slice(0, 3)).map((action) => (
               <div
                 key={action.id}
                 className="card-hover"
@@ -132,11 +158,12 @@ export default function MatchReport() {
         </section>
 
         {/* Footer */}
-        <footer style={{ textAlign: 'center', paddingBottom: '24px' }}>
+        <footer style={{ textAlign: 'center', paddingBottom: '24px', paddingTop: '16px' }}>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', letterSpacing: '0.03em' }}>
             Powered by Gemini 2.0 Flash · Google Cloud · Firebase
           </p>
         </footer>
+        </div>
       </div>
     </div>
   );

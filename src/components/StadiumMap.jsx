@@ -100,7 +100,11 @@ const StadiumMap = ({ crowdDensity = {} }) => {
 
     return () => {
       window.gm_authFailure = undefined;
-      Object.values(polygonsRef.current).forEach(p => { try { p.setMap(null); } catch (_) {} });
+      Object.values(polygonsRef.current).forEach(p => { 
+        try { p.setMap(null); } catch (_) {
+          // Ignore errors during cleanup of unmapped polygons
+        } 
+      });
       polygonsRef.current = {};
       mapInstance.current = null;
     };

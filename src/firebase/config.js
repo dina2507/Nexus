@@ -23,7 +23,16 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+let messaging = null;
+try {
+  messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
+} catch (_) { /* messaging not supported in this environment */ }
+
+let analytics = null;
+try {
+  analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+} catch (_) { /* analytics not supported in this environment */ }
+
+export { messaging, analytics };
 
 export default app;

@@ -12,6 +12,9 @@ const admin = require('firebase-admin');
 const { simulateCrowd } = require('./crowdSimulator');
 const { runNexusEngine } = require('./nexusEngine');
 const { sendFanNudge } = require('./fanNudge');
+const { requireOperator } = require('./middleware/auth');
+const { simulateWeather } = require('./weatherSimulator');
+const { simulateTicketScans } = require('./ticketScanSimulator');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -30,7 +33,8 @@ exports.crowdSimulatorCron = onSchedule('every 1 minutes', async () => {
     return;
   }
   console.log('NEXUS: Running crowd simulator tick (top of minute)...');
-  await simulateCrowd('chepauk', db);
+  const stadiumIds = await getAllStadiumIds();
+  await Promise.all(stadiumIds.map(id => simulateCrowd(id, db)));
 });
 
 /**
@@ -48,13 +52,33 @@ exports.crowdSimulatorCronOffset = onSchedule(
       return;
     }
     console.log('NEXUS: Running crowd simulator tick (offset +30s)...');
-    await simulateCrowd('chepauk', db);
+    const stadiumIds = await getAllStadiumIds();
+    await Promise.all(stadiumIds.map(id => simulateCrowd(id, db)));
   }
 );
+
+exports.weatherSimulatorCron = onSchedule('every 5 minutes', async () => {
+  if (await isEnginePaused()) return;
+  console.log('NEXUS: Running weather simulator...');
+  const stadiumIds = await getAllStadiumIds();
+  await Promise.all(stadiumIds.map(id => simulateWeather(id, db)));
+});
+
+exports.ticketScanSimulatorCron = onSchedule('every 1 minutes', async () => {
+  if (await isEnginePaused()) return;
+  console.log('NEXUS: Running ticket scan simulator...');
+  const stadiumIds = await getAllStadiumIds();
+  await Promise.all(stadiumIds.map(id => simulateTicketScans(id, db)));
+});
 
 async function isEnginePaused() {
   const snap = await db.doc('nexus_state/engine').get();
   return Boolean(snap.data()?.paused);
+}
+
+async function getAllStadiumIds() {
+  const snap = await db.collection('stadiums').get();
+  return snap.docs.map(doc => doc.id);
 }
 
 /**
@@ -76,8 +100,9 @@ exports.nexusOnCrowdUpdate = onDocumentUpdated(
  * Manual trigger for demo controls.
  * POST { stadiumId, scenario } to run specific demo scenarios.
  */
-exports.nexusTrigger = onRequest({ cors: true }, async (req, res) => {
-  const { stadiumId = 'chepauk', scenario, manualAction, emergencyBroadcast } = req.body;
+exports.nexusTrigger = onRequest({ cors: true }, (req, res) => {
+  requireOperator(req, res, async () => {
+    const { stadiumId = 'chepauk', scenario, manualAction, emergencyBroadcast } = req.body;
 
   // Emergency broadcast — fan-wide FCM blast, bypasses Gemini and budget
   if (emergencyBroadcast) {
@@ -209,4 +234,78 @@ exports.nexusTrigger = onRequest({ cors: true }, async (req, res) => {
     console.error('NEXUS: Trigger error', err);
     res.status(500).json({ error: err.message });
   }
+  });
+});
+
+const { mintJwt, verifyJwt } = require('./voucher');
+
+exports.mintVoucher = onRequest({ cors: true }, async (req, res) => {
+  requireOperator(req, res, async () => {
+    // We only mint for real user or demo user
+    const { actionId, uid } = req.body;
+    try {
+      if (!actionId) return res.status(400).json({ error: 'Missing actionId' });
+      
+      const actionSnap = await db.doc(`nexus_actions/${actionId}`).get();
+      if (!actionSnap.exists) return res.status(404).json({ error: 'Action not found' });
+      
+      const action = actionSnap.data();
+      if (action.stakeholder !== 'fans' || action.status !== 'dispatched') {
+        return res.status(400).json({ error: 'Action not valid for voucher' });
+      }
+
+      const payload = {
+        jti: actionId + '_' + Date.now().toString(),
+        uid: uid || req.uid || 'anon',
+        action_id: actionId,
+        zone: action.target_zone || '',
+        inr: action.incentive_inr || 0,
+        exp: Math.floor(Date.now() / 1000) + 3600
+      };
+
+      const secret = process.env.VOUCHER_SECRET || 'fallback_secret';
+      const token = mintJwt(payload, secret);
+      
+      return res.json({ token, payload });
+    } catch (err) {
+      console.error('Mint voucher error', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+});
+
+exports.redeemVoucher = onRequest({ cors: true }, async (req, res) => {
+  requireOperator(req, res, async () => {
+    const { token } = req.body;
+    try {
+      if (!token) return res.status(400).json({ error: 'Missing token' });
+      
+      const secret = process.env.VOUCHER_SECRET || 'fallback_secret';
+      const payload = verifyJwt(token, secret);
+
+      if (payload.exp < Math.floor(Date.now() / 1000)) {
+        return res.status(400).json({ error: 'Voucher expired' });
+      }
+
+      // Check replays
+      const redeemRef = db.doc(`voucher_redemptions/${payload.jti}`);
+      const redeemSnap = await redeemRef.get();
+      if (redeemSnap.exists) {
+        return res.status(400).json({ error: 'Voucher already redeemed' });
+      }
+
+      // Mark redeemed
+      await redeemRef.set({
+        redeemed_at: new Date().toISOString(),
+        action_id: payload.action_id,
+        uid: payload.uid,
+        inr: payload.inr
+      });
+
+      return res.json({ success: true, message: 'Voucher redeemed successfully', inr: payload.inr });
+    } catch (err) {
+      console.error('Redeem voucher error', err);
+      return res.status(401).json({ error: err.message });
+    }
+  });
 });

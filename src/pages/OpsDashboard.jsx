@@ -6,9 +6,13 @@ import StadiumMap from '../components/StadiumMap';
 import ZoneDensityBars from '../components/ZoneDensityBars';
 import ImpactChart from '../components/ImpactChart';
 import ApprovalQueue from '../components/ApprovalQueue';
+import GateActivityPanel from '../components/GateActivityPanel';
+import WeatherPill from '../components/WeatherPill';
+import StadiumPicker from '../components/StadiumPicker';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase/config';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { fetchWithAuth } from '../components/auth';
 
 const STADIUM_ID = import.meta.env.VITE_STADIUM_ID || 'chepauk';
 
@@ -58,10 +62,10 @@ const OpsDashboard = () => {
     if (!confirmed) return;
     setBroadcastLoading(true);
     try {
-      await fetch(`${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`, {
+      await fetchWithAuth(`${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stadiumId: STADIUM_ID, emergencyBroadcast: true }),
+        body: JSON.stringify({ stadiumId: STADIUM_ID, emergencyBroadcast: true, confirmCode: 'EMERGENCY' }),
       });
     } catch (err) {
       console.error('Emergency broadcast failed:', err);
@@ -73,7 +77,7 @@ const OpsDashboard = () => {
   async function dispatchOverride(a) {
     setOverrideLoading(a.id);
     try {
-      await fetch(`${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`, {
+      await fetchWithAuth(`${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -87,6 +91,19 @@ const OpsDashboard = () => {
       setOverrideLoading(null);
     }
   }
+
+  const avgDensity = Object.values(densities).length > 0
+    ? Object.values(densities).reduce((sum, z) => sum + (z.pct || 0), 0) / Object.values(densities).length
+    : 0;
+  const pressureIndex = (avgDensity * 10).toFixed(1);
+  const latestRisk = actions.length > 0 ? actions[0]?.risk_assessment : null;
+  // Memoize the map densities so StadiumMap only re-renders when actual zone
+  // percentages change, not on every parent re-render from the action feed.
+  const mapDensities = useMemo(
+    () => Object.fromEntries(Object.entries(densities).map(([id, d]) => [id, d.pct || 0])),
+    [densities]
+  );
+  const matchClock = formatMatchClock(matchState);
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -104,19 +121,6 @@ const OpsDashboard = () => {
     </div>
   );
 
-  const avgDensity = Object.values(densities).length > 0
-    ? Object.values(densities).reduce((sum, z) => sum + (z.pct || 0), 0) / Object.values(densities).length
-    : 0;
-  const pressureIndex = (avgDensity * 10).toFixed(1);
-  const latestRisk = actions.length > 0 ? actions[0]?.risk_assessment : null;
-  // Memoize the map densities so StadiumMap only re-renders when actual zone
-  // percentages change, not on every parent re-render from the action feed.
-  const mapDensities = useMemo(
-    () => Object.fromEntries(Object.entries(densities).map(([id, d]) => [id, d.pct || 0])),
-    [densities]
-  );
-  const matchClock = formatMatchClock(matchState);
-
   // ── Left column ──────────────────────────────────────────
   const leftCol = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -128,6 +132,8 @@ const OpsDashboard = () => {
         <ZoneDensityBars zones={stadium.zones} densities={densities} crushThreshold={stadium.crush_threshold} />
       </section>
 
+      <GateActivityPanel />
+
       <section className="card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '14px' }}>
           <Shield size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
@@ -136,7 +142,7 @@ const OpsDashboard = () => {
         {latestRisk ? (
           <div style={{ borderLeft: '2px solid var(--accent)', paddingLeft: '12px' }}>
             <p style={{ fontSize: '12px', color: 'var(--text-primary)', lineHeight: 1.6, fontStyle: 'italic', margin: 0 }}>
-              "{latestRisk}"
+              &quot;{latestRisk}&quot;
             </p>
           </div>
         ) : (
@@ -351,7 +357,7 @@ const OpsDashboard = () => {
           <div>
             <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1 }}>NEXUS</div>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', letterSpacing: '0.03em' }}>
-              {stadium?.name || 'MA Chidambaram Stadium'}
+              <StadiumPicker />
             </div>
           </div>
           <div style={{ width: '1px', height: '28px', background: 'var(--border-subtle)' }} />
@@ -368,6 +374,7 @@ const OpsDashboard = () => {
             <span className="stat-label">Score</span>
             <span className="stat-value">{matchState?.score || '—'}</span>
           </div>
+          <WeatherPill />
           <div className="stat-card">
             <span className="stat-label">Halftime</span>
             <span className="stat-value" style={{ color: matchState?.mins_to_halftime <= 10 ? 'var(--danger)' : 'var(--warning)' }}>
@@ -418,7 +425,7 @@ const OpsDashboard = () => {
 
       {/* ─── Mobile tab bar (hidden on desktop via CSS) ─── */}
       <nav className="ops-mobile-tabs">
-        {MOBILE_TABS.map(({ id, label, Icon }) => (
+        {MOBILE_TABS.map(({ id, label, Icon: TabIcon }) => (
           <button
             key={id}
             onClick={() => setMobileTab(id)}
@@ -429,7 +436,7 @@ const OpsDashboard = () => {
               transition: 'color 0.15s',
             }}
           >
-            <Icon size={20} />
+            <TabIcon size={20} />
             <span style={{ fontSize: '10px', fontWeight: 600 }}>{label}</span>
           </button>
         ))}

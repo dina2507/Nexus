@@ -45,12 +45,13 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   }
 
   // 1. Read state in parallel (now includes historical patterns)
-  const [stadiumDoc, crowdSnap, matchDoc, historyDoc] = await Promise.all([
+  const [stadiumDoc, crowdSnap, matchDoc, historyDoc, weatherDoc, gatesSnap] = await Promise.all([
     db.doc(`stadiums/${stadiumId}`).get(),
-    db.collection('crowd_density')
-      .where('stadium_id', '==', stadiumId).get(),
+    db.collection('crowd_density').where('stadium_id', '==', stadiumId).get(),
     db.doc('match_events/current').get(),
     db.doc(`historical_patterns/${stadiumId}`).get(),
+    db.doc(`weather/${stadiumId}`).get(),
+    db.collection('gates').where('stadium_id', '==', stadiumId).get(),
   ]);
 
   const stadium = stadiumDoc.data();
@@ -63,6 +64,9 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   crowdSnap.forEach(doc => crowdState[doc.id] = doc.data());
   const matchState = matchDoc.data();
   const historicalPatterns = historyDoc.exists ? historyDoc.data() : null;
+  const weatherState = weatherDoc.exists ? weatherDoc.data() : null;
+  const gateState = {};
+  gatesSnap.forEach(doc => gateState[doc.id] = doc.data());
 
   if (!matchState) {
     console.warn('No match_events/current document found');
@@ -105,7 +109,7 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
 
   // 3. Call Gemini 2.0 Flash
   console.log('NEXUS: Calling Gemini 2.0 Flash...');
-  const prompt = buildNexusPrompt(stadium, crowdState, matchState, historicalPatterns);
+  const prompt = buildNexusPrompt(stadium, crowdState, matchState, historicalPatterns, weatherState, gateState);
 
   let decision;
   for (let attempt = 0; attempt <= 1; attempt++) {
@@ -221,4 +225,4 @@ function buildFallbackDecision(crowdState, matchState, stadium) {
   };
 }
 
-module.exports = { runNexusEngine };
+module.exports = { runNexusEngine, buildFallbackDecision };

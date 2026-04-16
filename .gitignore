@@ -46,3 +46,4 @@ Instructions.md
 # Local tool config and sensitive data
 .claude/
 users.json
+nexus/

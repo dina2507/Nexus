@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { RotateCcw, AlertTriangle, Flag, Zap } from 'lucide-react';
+import { fetchWithAuth } from '../components/auth';
 
 const scenarios = [
   {
@@ -42,7 +43,7 @@ export default function DemoControls() {
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     try {
       const url  = `${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`;
-      const resp = await fetch(url, {
+      const resp = await fetchWithAuth(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stadiumId: import.meta.env.VITE_STADIUM_ID || 'chepauk', scenario: scenarioId }),

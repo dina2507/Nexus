@@ -2,7 +2,7 @@
  * NEXUS Gemini Prompt Template
  * Builds the full context prompt for Gemini 2.0 Flash decision engine.
  */
-function buildNexusPrompt(stadium, crowdState, matchState, historicalPatterns) {
+function buildNexusPrompt(stadium, crowdState, matchState, historicalPatterns, weatherState, gateState) {
   const zonesContext = stadium.zones.map(z => ({
     id: z.id,
     label: z.label,
@@ -28,6 +28,20 @@ ${historicalPatterns.patterns.map((p, i) =>
 `
     : '';
 
+  const weatherBlock = weatherState
+    ? `
+WEATHER:
+- Temp: ${weatherState.temp_c}°C
+- Condition: ${weatherState.condition} (precip: ${weatherState.precip_mm}mm, wind: ${weatherState.wind_kmh}km/h)
+- Rule: If precip > 5mm, expect concourse rush.`
+    : '';
+
+  const gateBlock = gateState && Object.keys(gateState).length > 0
+    ? `
+GATE THROUGHPUT (scans per minute):
+${Object.entries(gateState).map(([gateId, data]) => `- ${gateId}: ${data.scan_rate_per_min || 0} scans/min`).join('\n')}`
+    : '';
+
   return `
 You are NEXUS, the AI operations engine for ${stadium.name}.
 Stadium capacity: ${stadium.total_capacity}. Current attendance: ${matchState.attendance}.
@@ -38,9 +52,8 @@ ${JSON.stringify(zonesContext, null, 2)}
 MATCH CONTEXT:
 - Over: ${matchState.over}, Score: ${matchState.score}
 - Halftime in: ${matchState.mins_to_halftime} minutes
-- Weather: ${matchState.weather}
 - Incentive budget remaining: ₹${matchState.remaining_budget}
-${historyBlock}
+${historyBlock}${weatherBlock}${gateBlock}
 PHYSICAL CONSTRAINTS:
 - Crush threshold: ${stadium.crush_threshold * 100}% (action required above this)
 - Critical threshold: ${stadium.critical_threshold * 100}% (human approval required)

@@ -70,7 +70,7 @@ const PendingCard = ({ action, onApprove, onReject }) => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [onApprove]);
 
   const isUrgent = countdown <= 15;
 
