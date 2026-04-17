@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNexus } from '../context/NexusContext';
 import { Cloud, Sun, CloudRain } from 'lucide-react';
 

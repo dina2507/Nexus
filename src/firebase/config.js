@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging } from "firebase/messaging";
 import { getAnalytics } from "firebase/analytics";
@@ -21,7 +21,10 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Persistent local cache enables offline read/sync on reconnection (V4 §2.2)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache()
+});
 export const storage = getStorage(app);
 let messaging = null;
 try {

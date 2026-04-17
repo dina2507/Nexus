@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { subscribePendingActions, resolveAction } from '../firebase/collections';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Check, X, Clock } from 'lucide-react';

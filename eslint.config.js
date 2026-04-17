@@ -6,7 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores(['dist', 'functions/node_modules', 'nexus/']),
+  globalIgnores(['dist', 'functions/node_modules', 'nexus/', '.claude/worktrees']),
 
   // 1. Core JS Recommended (Base)
   {
@@ -54,6 +54,7 @@ export default defineConfig([
     rules: {
       ...react.configs.flat.recommended.rules,
       ...reactHooks.configs.recommended.rules,
+      'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
       'react-refresh/only-export-components': [
         'warn',

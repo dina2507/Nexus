@@ -115,7 +115,11 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   for (let attempt = 0; attempt <= 1; attempt++) {
     try {
       if (attempt === 1) await new Promise(r => setTimeout(r, 500));
-      const result = await model.generateContent(prompt);
+      // 8-second timeout wrapper as per V4 specs
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
+      ]);
       const responseText = result.response.text();
       decision = JSON.parse(responseText);
       console.log('NEXUS: Gemini response received, confidence:', decision.confidence);
@@ -124,9 +128,20 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
       if (attempt === 0) {
         console.warn('NEXUS: Gemini attempt 1 failed, retrying in 500ms...', err.message);
       } else {
-        console.error('NEXUS: Gemini call failed after retry, using fallback', err.message);
+        console.error('NEXUS: Gemini call failed after retry or timeout, using fallback', err.message);
         decision = buildFallbackDecision(crowdState, matchState, stadium);
       }
+    }
+  }
+
+  // 3.5 The Budget Guard
+  // Verify current_budget - projected_incentives >= 0 before committing
+  const fanAction = decision.actions?.fans;
+  if (fanAction && fanAction.incentive_inr > 0 && fanAction.action) {
+    const projectedIncentives = fanAction.incentive_inr * 500; // estimated 500 fans
+    if ((matchState.remaining_budget || 0) - projectedIncentives < 0) {
+      console.warn(`NEXUS: Budget Guard triggered. Projected (₹${projectedIncentives}) exceeds remaining (₹${matchState.remaining_budget || 0}). Forcing ₹0 incentive.`);
+      decision.actions.fans.incentive_inr = 0;
     }
   }
 
@@ -137,6 +152,18 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
   Object.entries(decision.actions).forEach(([stakeholder, action]) => {
     if (!action.action) return; // Skip if no action needed
     const ref = db.collection('nexus_actions').doc();
+    
+    // Auto-dispatch routine actions, queue critical for human review
+    let actionStatus = 'dispatched';
+    if (action.priority >= 4) {
+      actionStatus = 'pending';
+    } else {
+      const targetZoneId = action.target_zone || action.target;
+      if (targetZoneId && crowdState[targetZoneId] && crowdState[targetZoneId].pct >= 0.93) {
+        actionStatus = 'pending';
+      }
+    }
+
     batch.set(ref, {
       stakeholder,
       ...action,
@@ -144,23 +171,17 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
       confidence: decision.confidence,
       stadium_id: stadiumId,
       timestamp,
-      // Auto-dispatch routine actions, queue critical for human review
-      status: action.priority >= 4 ? 'pending' : 'dispatched'
+      status: actionStatus
     });
   });
 
   await batch.commit();
   console.log('NEXUS: Actions written to Firestore');
 
-  // Override fan incentive if budget is exhausted
-  if (budgetExhausted && decision.actions?.fans) {
-    decision.actions.fans.incentive_inr = 0;
-    decision.actions.fans.action = '';
-  }
-
+  // Override fan incentive if budget is exhausted (handled by Budget Guard above)
+  
   // Deduct incentive budget — estimate 500 fans nudged per dispatch
-  const fanAction = decision.actions?.fans;
-  if (fanAction?.incentive_inr > 0 && fanAction.action) {
+  if (fanAction && fanAction.incentive_inr > 0 && fanAction.action) {
     await db.doc('match_events/current').update({
       remaining_budget: admin.firestore.FieldValue.increment(-(fanAction.incentive_inr * 500))
     });

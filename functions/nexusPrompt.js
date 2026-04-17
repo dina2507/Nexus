@@ -111,6 +111,7 @@ Rules:
 - Priority 1-2: informational. Priority 3: standard action. Priority 4-5: urgent (human review)
 - Never recommend opening a gate if adjacent gate is already above 85% throughput
 - Fan nudge must be actionable and include the benefit clearly
+- Circular Route Prevention: If routing fans from Zone A to Zone B, do NOT simultaneously route fans from Zone B to Zone A.
 `;
 }
 

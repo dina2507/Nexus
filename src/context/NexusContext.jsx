@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { doc, onSnapshot, collection, query, orderBy, limit, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../firebase/config';
@@ -8,6 +8,7 @@ const DEFAULT_STADIUM_ID = import.meta.env.VITE_STADIUM_ID || 'chepauk';
 
 const NexusContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNexus = () => useContext(NexusContext);
 
 export const NexusProvider = ({ children }) => {

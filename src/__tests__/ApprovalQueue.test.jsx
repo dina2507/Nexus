@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import ApprovalQueue from '../components/ApprovalQueue';

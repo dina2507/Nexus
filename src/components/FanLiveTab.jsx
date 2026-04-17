@@ -1,4 +1,3 @@
-import React from 'react';
 import { Activity, Bell } from 'lucide-react';
 
 export default function FanLiveTab({ matchState, actions, fanProfile }) {

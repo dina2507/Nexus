@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useNexus } from '../context/NexusContext';
 import {
   Chart as ChartJS,
@@ -32,11 +32,17 @@ const ImpactChart = () => {
       return {
         labels:       log.map(d => String(Math.round(d.t))),
         withNexus:    log.map(d => Math.round((d.north_stand || 0) * 100)),
-        withoutNexus: log.map(d => Math.min(99, Math.round(((d.north_stand || 0) + 0.13) * 100))),
+        withoutNexus: log.map((d, i) => {
+          const base = (d.north_stand || 0) * 100;
+          const progress = i / Math.max(1, log.length - 1);
+          // Simulate unmitigated disaster: hockey-stick curve after halfway
+          const divergence = Math.pow(Math.max(0, progress - 0.3), 2) * 45;
+          return Math.min(98, Math.round(base + divergence));
+        }),
       };
     }
     return { labels: STATIC_LABELS, withNexus: STATIC_WITH, withoutNexus: STATIC_WITHOUT };
-  }, [isLive, rawLog?.length]);
+  }, [isLive, rawLog]);
 
   const options = {
     responsive: true,
@@ -94,23 +100,37 @@ const ImpactChart = () => {
         label: 'Without NEXUS',
         data: withoutNexus,
         borderColor: '#ef4444',
-        backgroundColor: 'rgba(239,68,68,0.07)',
+        backgroundColor: (context) => {
+          const ctx = context.chart.ctx;
+          const gradient = ctx.createLinearGradient(0, 0, 0, context.chart.height || 200);
+          gradient.addColorStop(0, 'rgba(239,68,68,0.25)');
+          gradient.addColorStop(1, 'rgba(239,68,68,0.0)');
+          return gradient;
+        },
         fill: true,
         tension: 0.4,
         borderWidth: 2,
         pointRadius: 0,
-        pointHoverRadius: 4,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#ef4444',
       },
       {
         label: 'With NEXUS AI',
         data: withNexus,
         borderColor: '#10b981',
-        backgroundColor: 'rgba(16,185,129,0.07)',
+        backgroundColor: (context) => {
+          const ctx = context.chart.ctx;
+          const gradient = ctx.createLinearGradient(0, 0, 0, context.chart.height || 200);
+          gradient.addColorStop(0, 'rgba(16,185,129,0.3)');
+          gradient.addColorStop(1, 'rgba(16,185,129,0.0)');
+          return gradient;
+        },
         fill: true,
         tension: 0.4,
         borderWidth: 2,
         pointRadius: 0,
-        pointHoverRadius: 4,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#10b981',
       },
       {
         label: 'Crush threshold',

@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 
 const ZoneDensityBars = ({ zones = [], densities = {}, crushThreshold = 0.82 }) => {
@@ -25,6 +24,14 @@ const ZoneDensityBars = ({ zones = [], densities = {}, crushThreshold = 0.82 }) 
             : density >= 0.70
               ? 'linear-gradient(90deg, #10b981, #f59e0b)'
               : 'linear-gradient(90deg, #10b981, #34d399)';
+
+        const glowShadow = isEmergency
+          ? '0 0 12px rgba(220,38,38,0.8)'
+          : isCritical
+            ? '0 0 10px rgba(239,68,68,0.6)'
+            : density >= 0.70
+              ? '0 0 8px rgba(245,158,11,0.5)'
+              : '0 0 6px rgba(16,185,129,0.3)';
 
         return (
           <div key={zone.id}>
@@ -59,6 +66,7 @@ const ZoneDensityBars = ({ zones = [], densities = {}, crushThreshold = 0.82 }) 
                 style={{
                   height: '100%', borderRadius: '99px',
                   background: barGradient,
+                  boxShadow: glowShadow,
                 }}
               />
             </div>

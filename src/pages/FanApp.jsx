@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNexus } from '../context/NexusContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, Activity, Ticket, Bell } from 'lucide-react';
+import { Navigation, Activity, Ticket } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { fetchWithAuth } from '../components/auth';
 import FanNavigateTab from '../components/FanNavigateTab';
@@ -10,7 +10,7 @@ import FanSeatTab from '../components/FanSeatTab';
 import { getToken, onMessage } from 'firebase/messaging';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
-  doc, setDoc, getDoc,
+  doc, setDoc,
   collection, query, where, orderBy, limit, onSnapshot,
 } from 'firebase/firestore';
 import { auth, db, messaging } from '../firebase/config';
@@ -38,6 +38,7 @@ const FanApp = () => {
   useEffect(() => {
     let unsubscribeMessage = null;
     let unsubscribeAuth = null;
+    let unsubscribeProfile = null;
 
     async function bootstrap() {
       try { await signInAnonymously(auth); }
@@ -47,19 +48,21 @@ const FanApp = () => {
         if (!currentUser) return;
         setUid(currentUser.uid);
 
-        // Load or seed fan profile with a demo seat
+        // Sub to profile with onSnapshot to make FanApp reactive to zone resets
         const ref = doc(db, 'fan_profiles', currentUser.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          setFanProfile({ ...DEFAULT_SEAT, ...snap.data() });
-        } else {
-          await setDoc(ref, {
-            stadium_id: STADIUM_ID,
-            ...DEFAULT_SEAT,
-            created_at: new Date().toISOString(),
-          }, { merge: true });
-          setFanProfile(DEFAULT_SEAT);
-        }
+        
+        unsubscribeProfile = onSnapshot(ref, async (snap) => {
+          if (snap.exists()) {
+            setFanProfile({ ...DEFAULT_SEAT, ...snap.data() });
+          } else {
+            await setDoc(ref, {
+              stadium_id: STADIUM_ID,
+              ...DEFAULT_SEAT,
+              created_at: new Date().toISOString(),
+            }, { merge: true });
+            // onSnapshot will fire again once setDoc completes
+          }
+        });
 
         if (!messaging) return;
         const permission = Notification.permission === 'default'
@@ -97,6 +100,7 @@ const FanApp = () => {
     return () => {
       if (unsubscribeMessage) unsubscribeMessage();
       if (unsubscribeAuth) unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
     };
   }, []);
 
@@ -125,7 +129,7 @@ const FanApp = () => {
         actionId,
       });
     });
-  }, [fanProfile?.zone_id]);
+  }, [fanProfile?.zone_id, notification, uid]);
 
   const [voucherPayload, setVoucherPayload] = useState(null);
 
@@ -134,7 +138,7 @@ const FanApp = () => {
       setVoucherPayload(null);
       return;
     }
-    
+
     // Fetch server-signed voucher
     const fetchSignedVoucher = async () => {
       try {
@@ -151,9 +155,9 @@ const FanApp = () => {
         console.error('Failed to mint voucher:', err);
       }
     };
-    
+
     fetchSignedVoucher();
-  }, [notification?.actionId, notification?.incentive_inr, uid]);
+  }, [notification, uid]);
 
   const myZoneDensity = fanProfile?.zone_id ? (densities[fanProfile.zone_id]?.pct || 0) : 0;
 
@@ -203,6 +207,7 @@ const FanApp = () => {
             myZoneDensity={myZoneDensity} 
             stadium={stadium} 
             densities={densities} 
+            targetZone={notification?.target_zone || null}
           />
         )}
         {activeTab === 'live' && (
@@ -246,7 +251,7 @@ const FanApp = () => {
               <div style={{ padding: '14px 14px 14px 18px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                    <Bell size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    <div style={{ width: '13px', height: '13px', borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
                     <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--accent)' }}>
                       {notification.title}
                     </span>

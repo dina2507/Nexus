@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { useNexus } from '../context/NexusContext';
 import ImpactChart from '../components/ImpactChart';
 import { usePDF } from 'react-to-pdf';
@@ -16,6 +16,15 @@ const stakeholderColors = {
 export default function MatchReport() {
   const { actions, stadium, matchState } = useNexus();
   const { toPDF, targetRef } = usePDF({ filename: 'nexus-match-report.pdf' });
+  const [pdfCapturing, setPdfCapturing] = useState(false);
+
+  // V4 §2.3: Await ImpactChart canvas paint before capturing PDF
+  async function handleExportPDF() {
+    setPdfCapturing(true);
+    await new Promise(r => setTimeout(r, 350));
+    await toPDF();
+    setPdfCapturing(false);
+  }
   const reportActions = [...actions].sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   const total         = actions.length;
@@ -67,8 +76,8 @@ export default function MatchReport() {
               {stadium.name} · {matchState?.score || '0/0'} · {matchState?.weather || 'Weather unavailable'}
             </p>
           </div>
-          <button className="btn-primary" onClick={() => toPDF()} style={{ padding: '8px 16px' }}>
-            Export PDF
+          <button className="btn-primary" onClick={handleExportPDF} disabled={pdfCapturing} style={{ padding: '8px 16px' }}>
+            {pdfCapturing ? 'Generating…' : 'Export PDF'}
           </button>
         </header>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 
 // Proper stadium overhead layout — fixed coordinates in 400×280 viewBox
@@ -24,6 +24,35 @@ const densityToFill = (pct) => {
   return 'rgba(16,185,129,0.18)';
 };
 
+const ZONES_DATA = {
+  // Top crescent (North)
+  'north_stand': [
+    {lat: 13.0634, lng: 80.2784}, {lat: 13.0642, lng: 80.2788},
+    {lat: 13.0642, lng: 80.2798}, {lat: 13.0634, lng: 80.2802}
+  ],
+  // Bottom crescent (South)
+  'south_stand': [
+    {lat: 13.0622, lng: 80.2784}, {lat: 13.0614, lng: 80.2788},
+    {lat: 13.0614, lng: 80.2798}, {lat: 13.0622, lng: 80.2802}
+  ],
+  // Right crescent (East)
+  'east_block':  [
+    {lat: 13.0634, lng: 80.2802}, {lat: 13.0630, lng: 80.2810},
+    {lat: 13.0626, lng: 80.2810}, {lat: 13.0622, lng: 80.2802}
+  ],
+  // Left crescent (West)
+  'west_block':  [
+    {lat: 13.0634, lng: 80.2784}, {lat: 13.0630, lng: 80.2776},
+    {lat: 13.0626, lng: 80.2776}, {lat: 13.0622, lng: 80.2784}
+  ],
+  // Outer ring representing the main concourse behind stands
+  'concourse_a': [
+    {lat: 13.0642, lng: 80.2788}, {lat: 13.0646, lng: 80.2790},
+    {lat: 13.0646, lng: 80.2805}, {lat: 13.0634, lng: 80.2813},
+    {lat: 13.0630, lng: 80.2810}, {lat: 13.0642, lng: 80.2798}
+  ]
+};
+
 const StadiumMap = ({ crowdDensity = {} }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -31,14 +60,6 @@ const StadiumMap = ({ crowdDensity = {} }) => {
   const [mapMode, setMapMode] = useState('loading');
   const [mapError, setMapError] = useState('');
   const [selectedZone, setSelectedZone] = useState(null);
-
-  const zonesData = {
-    'north_stand': [{lat:13.0641,lng:80.2783},{lat:13.0644,lng:80.2798},{lat:13.0638,lng:80.2800},{lat:13.0635,lng:80.2785}],
-    'south_stand': [{lat:13.0621,lng:80.2783},{lat:13.0624,lng:80.2798},{lat:13.0618,lng:80.2800},{lat:13.0615,lng:80.2785}],
-    'east_block':  [{lat:13.0628,lng:80.2798},{lat:13.0638,lng:80.2800},{lat:13.0638,lng:80.2808},{lat:13.0628,lng:80.2806}],
-    'west_block':  [{lat:13.0628,lng:80.2775},{lat:13.0638,lng:80.2775},{lat:13.0638,lng:80.2783},{lat:13.0628,lng:80.2783}],
-    'concourse_a': [{lat:13.0635,lng:80.2787},{lat:13.0638,lng:80.2795},{lat:13.0633,lng:80.2796},{lat:13.0630,lng:80.2788}],
-  };
 
   useEffect(() => {
     const apiKey = (import.meta.env.VITE_MAPS_KEY || '').trim();
@@ -60,17 +81,18 @@ const StadiumMap = ({ crowdDensity = {} }) => {
       if (!mapInstance.current && mapRef.current) {
         setMapMode('google');
         mapInstance.current = new google.maps.Map(mapRef.current, {
-          center: { lat: 13.0631, lng: 80.2790 },
-          zoom: 17,
+          center: { lat: 13.0628, lng: 80.2793 },
+          zoom: 17.6,
           mapTypeId: 'satellite',
           disableDefaultUI: true,
+          tilt: 0
         });
 
         const infoWindow = new google.maps.InfoWindow();
 
-        Object.keys(zonesData).forEach(zoneId => {
+        Object.keys(ZONES_DATA).forEach(zoneId => {
           const polygon = new google.maps.Polygon({
-            paths: zonesData[zoneId],
+            paths: ZONES_DATA[zoneId],
             strokeColor: 'white',
             strokeWeight: 1.5,
             fillColor: '#10b981',
@@ -100,15 +122,15 @@ const StadiumMap = ({ crowdDensity = {} }) => {
 
     return () => {
       window.gm_authFailure = undefined;
-      Object.values(polygonsRef.current).forEach(p => { 
+      Object.values(polygonsRef.current).forEach(p => {
         try { p.setMap(null); } catch (_) {
           // Ignore errors during cleanup of unmapped polygons
-        } 
+        }
       });
       polygonsRef.current = {};
       mapInstance.current = null;
     };
-  }, []); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crowdDensity]);
 
   useEffect(() => {
     if (mapInstance.current) {

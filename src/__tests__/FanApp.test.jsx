@@ -1,5 +1,4 @@
-import React, { act } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { vi } from 'vitest';
 import FanApp from '../pages/FanApp';
 import * as nexusContext from '../context/NexusContext';
@@ -11,7 +10,7 @@ vi.mock('../context/NexusContext', () => ({
 
 vi.mock('firebase/auth', () => ({
   signInAnonymously: vi.fn().mockResolvedValue(undefined),
-  onAuthStateChanged: (auth, cb) => { cb({ uid: 'fan-123' }); return () => {}; },
+  onAuthStateChanged: (_auth, cb) => { cb({ uid: 'fan-123' }); return () => {}; },
 }));
 
 vi.mock('firebase/messaging', () => ({
@@ -37,7 +36,11 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
   orderBy: vi.fn(),
   limit: vi.fn(),
-  onSnapshot: vi.fn().mockReturnValue(() => {})
+  // Default: profile doc snapshot (exists = false), actions query snapshot is silent
+  onSnapshot: vi.fn((_ref, cb) => {
+    cb({ exists: () => false, data: () => ({}) });
+    return () => {};
+  }),
 }));
 
 vi.mock('../components/FanNavigateTab', () => ({
@@ -52,6 +55,12 @@ vi.mock('../components/FanSeatTab', () => ({
 
 describe('FanApp', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    // Restore default onSnapshot: profile doc returns empty, actions query is silent
+    firestore.onSnapshot.mockImplementation((_ref, cb) => {
+      cb({ exists: () => false, data: () => ({}) });
+      return () => {};
+    });
     nexusContext.useNexus.mockReturnValue({
       matchState: { score: '100/1', over: '10', mins_to_halftime: 20 },
       densities: { north_stand: { pct: 0.5 } },
@@ -61,8 +70,6 @@ describe('FanApp', () => {
   });
 
   it('Seat card reads from fan_profiles/{uid} and renders fallback if profile missing', async () => {
-    firestore.getDoc.mockResolvedValue({ exists: () => false });
-
     await act(async () => {
       render(<FanApp />);
     });
@@ -72,29 +79,39 @@ describe('FanApp', () => {
   });
 
   it('renders stored fan profile when profile exists', async () => {
-    firestore.getDoc.mockResolvedValue({
-      exists: () => true,
-      data: () => ({ seat: 'A-10', section: 'VIP', tier: 'Lower', gate: 'G1', zone_id: 'vip_zone' })
+    // First onSnapshot = profile doc (exists), second = actions query (silent)
+    let callCount = 0;
+    firestore.onSnapshot.mockImplementation((_ref, cb) => {
+      callCount++;
+      if (callCount === 1) {
+        cb({ exists: () => true, data: () => ({ seat: 'A-10', section: 'VIP', tier: 'Lower', gate: 'G1', zone_id: 'vip_zone' }) });
+      }
+      return () => {};
     });
 
     await act(async () => {
       render(<FanApp />);
     });
 
-    // Navigate tab is the default active tab
     expect(screen.getByTestId('navigate-tab')).toBeInTheDocument();
   });
 
   it('notification without incentive_inr does not show QR', async () => {
-    firestore.getDoc.mockResolvedValue({ exists: () => false });
-    firestore.onSnapshot.mockImplementation((q, cb) => {
-      cb({
-        empty: false,
-        docs: [{
-          id: 'action-1',
-          data: () => ({ stakeholder: 'fans', action: 'Go left', target_zone: 'north_stand', incentive_inr: 0, status: 'dispatched' })
-        }]
-      });
+    // First call = profile doc snapshot, second = actions query snapshot
+    let callCount = 0;
+    firestore.onSnapshot.mockImplementation((_ref, cb) => {
+      callCount++;
+      if (callCount === 1) {
+        cb({ exists: () => false, data: () => ({}) });
+      } else {
+        cb({
+          empty: false,
+          docs: [{
+            id: 'action-1',
+            data: () => ({ stakeholder: 'fans', action: 'Go left', target_zone: 'north_stand', incentive_inr: 0, status: 'dispatched' })
+          }]
+        });
+      }
       return () => {};
     });
 

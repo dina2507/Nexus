@@ -214,6 +214,16 @@ exports.nexusTrigger = onRequest({ cors: true }, (req, res) => {
         remaining_budget: 200000
       });
       await resetBatch.commit();
+
+      // V4 §2.4: Clear the ApprovalQueue and action feed on full reset
+      const actionsSnap = await db.collection('nexus_actions')
+        .where('stadium_id', '==', stadiumId).get();
+      if (!actionsSnap.empty) {
+        const deleteBatch = db.batch();
+        actionsSnap.docs.forEach(d => deleteBatch.delete(d.ref));
+        await deleteBatch.commit();
+      }
+
       return res.json({ success: true, scenario: 'reset', message: 'All zones reset to pre-match baseline' });
     }
 

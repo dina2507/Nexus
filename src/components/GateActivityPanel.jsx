@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNexus } from '../context/NexusContext';
 import { Activity } from 'lucide-react';
 
