@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { NexusProvider } from './context/NexusContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import OpsDashboard from './pages/OpsDashboard';
@@ -17,6 +17,7 @@ function App() {
             <Route path="/fan" element={<FanApp />} />
             <Route path="/demo" element={<DemoControls />} />
             <Route path="/report" element={<MatchReport />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </NexusProvider>

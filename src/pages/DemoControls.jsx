@@ -134,7 +134,7 @@ export default function DemoControls() {
                 </span>
                 <span style={{ color: 'var(--text-secondary)', fontWeight: 500, flex: 1, minWidth: 0,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {log.scenario}
+                  {scenarios.find(s => s.id === log.scenario)?.label || log.scenario}
                 </span>
                 <span style={{ fontSize: '10px', fontWeight: 600, flexShrink: 0,
                   color: log.success ? 'var(--success)' : 'var(--danger)' }}>

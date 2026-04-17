@@ -93,7 +93,7 @@ export default function FanNavigateTab({ fanProfile, myZoneDensity, stadium, tar
         </div>
         <div style={{
           fontSize: '11px', color: 'var(--text-muted)',
-          background: 'var(--bg-elevated)', borderRadius: '20px', padding: '3px 10px',
+          background: 'rgba(255,255,255,0.05)', borderRadius: '20px', padding: '3px 10px',
         }}>
           ~{waitTime} min wait at gate {bestGate}
         </div>

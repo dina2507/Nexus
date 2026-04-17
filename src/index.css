@@ -27,6 +27,9 @@
   --text-primary:    #f8fafc;
   --text-secondary:  #cbd5e1;
   --text-muted:      #64748b;
+
+  --bg-elevated:     rgba(255, 255, 255, 0.04);
+  --bg-overlay:      rgba(255, 255, 255, 0.02);
 }
 
 /* ─── Base Reset ─── */
@@ -111,6 +114,16 @@ body {
 .status-dot.warning { background: var(--warning); }
 .status-dot.danger  { background: var(--danger); }
 .status-dot.idle    { background: var(--text-muted); }
+
+/* ─── Standalone stat label ─── */
+.stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 /* ─── Section label ─── */
 .section-label {
