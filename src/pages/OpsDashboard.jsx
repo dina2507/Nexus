@@ -15,10 +15,10 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { fetchWithAuth } from '../components/auth';
 
 const OVERRIDE_ACTIONS = [
-  { id: 'gate',    stakeholder: 'security',  action: 'Open Gate G8 — redirect north exit flow',         label: 'Open Gate G8'   },
-  { id: 'medical', stakeholder: 'medical',   action: 'Call medical standby to North Stand corridor',     label: 'Medical Stand N' },
-  { id: 'fan',     stakeholder: 'fans',      action: 'Move to West Block — less crowded, faster exit',   label: 'Push Fan Nudge', target_zone: 'west_block', incentive_inr: 80  },
-  { id: 'bus',     stakeholder: 'transport', action: 'Hold 5 buses at Gate 7 for 20 minutes',            label: 'Hold Buses'      },
+  { id: 'gate', stakeholder: 'security', action: 'Open Gate G8 — redirect north exit flow', label: 'Open Gate G8' },
+  { id: 'medical', stakeholder: 'medical', action: 'Call medical standby to North Stand corridor', label: 'Medical Stand N' },
+  { id: 'fan', stakeholder: 'fans', action: 'Move to West Block — less crowded, faster exit', label: 'Push Fan Nudge', target_zone: 'west_block', incentive_inr: 80 },
+  { id: 'bus', stakeholder: 'transport', action: 'Hold 5 buses at Gate 7 for 20 minutes', label: 'Hold Buses' },
 ];
 
 const FEED_FILTERS = ['all', 'security', 'fans', 'concessions', 'medical', 'transport'];
@@ -30,10 +30,10 @@ function ConfidenceGauge({ confidence, enginePaused }) {
   const offset = confPct !== null ? C * (1 - confPct / 100) : C;
   const color = enginePaused ? 'var(--text-muted)'
     : confPct === null ? 'var(--text-muted)'
-    : confPct >= 80 ? 'var(--success)'
-    : confPct >= 60 ? 'var(--accent)'
-    : confPct >= 40 ? 'var(--warning)'
-    : 'var(--danger)';
+      : confPct >= 80 ? 'var(--success)'
+        : confPct >= 60 ? 'var(--accent)'
+          : confPct >= 40 ? 'var(--warning)'
+            : 'var(--danger)';
 
   return (
     <div style={{ position: 'relative', width: '100px', height: '56px', flexShrink: 0 }}>
@@ -273,8 +273,10 @@ const OpsDashboard = () => {
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
           <ConfidenceGauge confidence={latestConfidence} enginePaused={enginePaused} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600,
-              textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px' }}>
+            <div style={{
+              fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600,
+              textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '5px'
+            }}>
               Confidence
             </div>
             {latestAction?.risk_assessment ? (
@@ -321,8 +323,10 @@ const OpsDashboard = () => {
           boxShadow: `0 0 7px ${threatColor}`, flexShrink: 0,
           animation: topPriority >= 4 ? 'pulse 1.5s ease infinite' : 'none',
         }} />
-        <span style={{ fontSize: '11px', fontWeight: 700, color: threatColor,
-          textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1, minWidth: 0 }}>
+        <span style={{
+          fontSize: '11px', fontWeight: 700, color: threatColor,
+          textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1, minWidth: 0
+        }}>
           {threatLevel} · Pressure {pressureIndex}/10
         </span>
         <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
@@ -405,8 +409,10 @@ const OpsDashboard = () => {
                     padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)',
                   }}
                 >
-                  <div style={{ width: '3px', borderRadius: '2px', flexShrink: 0, alignSelf: 'stretch',
-                    background: color, minHeight: '36px' }} />
+                  <div style={{
+                    width: '3px', borderRadius: '2px', flexShrink: 0, alignSelf: 'stretch',
+                    background: color, minHeight: '36px'
+                  }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px', flexWrap: 'wrap' }}>
                       <span style={{
@@ -470,9 +476,9 @@ const OpsDashboard = () => {
   );
 
   const MOBILE_TABS = [
-    { id: 'map',     label: 'Map',     Icon: Map   },
-    { id: 'zones',   label: 'Zones',   Icon: Users  },
-    { id: 'actions', label: 'Actions', Icon: List   },
+    { id: 'map', label: 'Map', Icon: Map },
+    { id: 'zones', label: 'Zones', Icon: Users },
+    { id: 'actions', label: 'Actions', Icon: List },
   ];
 
   return (
@@ -498,13 +504,13 @@ const OpsDashboard = () => {
                 backdropFilter: 'blur(16px)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
                 background: toast.type === 'success' ? 'rgba(16,185,129,0.15)'
                   : toast.type === 'warning' ? 'rgba(251,191,36,0.15)'
-                  : 'rgba(244,63,94,0.15)',
+                    : 'rgba(244,63,94,0.15)',
                 border: `1px solid ${toast.type === 'success' ? 'rgba(16,185,129,0.35)'
                   : toast.type === 'warning' ? 'rgba(251,191,36,0.35)'
-                  : 'rgba(244,63,94,0.35)'}`,
+                    : 'rgba(244,63,94,0.35)'}`,
                 color: toast.type === 'success' ? 'var(--success)'
                   : toast.type === 'warning' ? 'var(--warning)'
-                  : 'var(--danger)',
+                    : 'var(--danger)',
               }}
             >
               {toast.message}
@@ -530,12 +536,12 @@ const OpsDashboard = () => {
               <polygon points="14,7 20,10.5 20,17.5 14,21 8,17.5 8,10.5"
                 fill="none" stroke="rgba(14,165,233,0.3)" strokeWidth="1" />
               <circle cx="14" cy="14" r="3" fill="var(--accent)" />
-              <line x1="14" y1="2"  x2="14" y2="7"    stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
-              <line x1="25" y1="8"  x2="20" y2="10.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
+              <line x1="14" y1="2" x2="14" y2="7" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
+              <line x1="25" y1="8" x2="20" y2="10.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
               <line x1="25" y1="20" x2="20" y2="17.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
-              <line x1="14" y1="26" x2="14" y2="21"   stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
-              <line x1="3"  y1="20" x2="8"  y2="17.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
-              <line x1="3"  y1="8"  x2="8"  y2="10.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
+              <line x1="14" y1="26" x2="14" y2="21" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
+              <line x1="3" y1="20" x2="8" y2="17.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
+              <line x1="3" y1="8" x2="8" y2="10.5" stroke="var(--accent)" strokeWidth="1" opacity="0.55" />
             </svg>
             <div>
               <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.1 }}>NEXUS</div>
@@ -640,30 +646,30 @@ const OpsDashboard = () => {
 
 function getStakeholderColor(stakeholder) {
   switch (stakeholder?.toLowerCase()) {
-    case 'security':    return '#ef4444';
-    case 'fans':        return '#3b82f6';
+    case 'security': return '#ef4444';
+    case 'fans': return '#3b82f6';
     case 'concessions': return '#f59e0b';
-    case 'medical':     return '#f97316';
-    case 'transport':   return '#10b981';
-    default:            return '#64748b';
+    case 'medical': return '#f97316';
+    case 'transport': return '#10b981';
+    default: return '#64748b';
   }
 }
 
 function getStatusColor(status) {
   switch (status?.toLowerCase()) {
     case 'dispatched': case 'approved': return '#10b981';
-    case 'pending':  return '#f59e0b';
+    case 'pending': return '#f59e0b';
     case 'rejected': return '#ef4444';
-    default:         return '#475569';
+    default: return '#475569';
   }
 }
 
 function formatMatchClock(matchState) {
   const minute = matchState?.match_minute;
   if (minute === null || minute === undefined) return 'Awaiting match clock';
-  if (minute < 0)    return `Pre-match · T-${Math.abs(minute)} min`;
-  if (minute < 45)   return `1st innings · Over ${Math.floor(minute / 3.75)}`;
-  if (minute < 60)   return 'Halftime';
+  if (minute < 0) return `Pre-match · T-${Math.abs(minute)} min`;
+  if (minute < 45) return `1st innings · Over ${Math.floor(minute / 3.75)}`;
+  if (minute < 60) return 'Halftime';
   if (minute <= 110) return `2nd innings · Over ${Math.floor((minute - 60) / 2.5)}`;
   return 'Post-match';
 }

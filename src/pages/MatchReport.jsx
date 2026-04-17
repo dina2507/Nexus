@@ -6,20 +6,20 @@ import { ArrowLeft, Shield, Users, Coffee, Heart, Bus } from 'lucide-react';
 
 const stakeholderOrder = ['security', 'fans', 'concessions', 'medical', 'transport'];
 const stakeholderColors = {
-  security:    '#ef4444',
-  fans:        '#3b82f6',
+  security: '#ef4444',
+  fans: '#3b82f6',
   concessions: '#f59e0b',
-  medical:     '#f97316',
-  transport:   '#10b981',
+  medical: '#f97316',
+  transport: '#10b981',
 };
 const stakeholderIcons = { security: Shield, fans: Users, concessions: Coffee, medical: Heart, transport: Bus };
 
 function statusColor(status) {
   switch (status?.toLowerCase()) {
     case 'dispatched': case 'approved': return '#10b981';
-    case 'pending':  return '#f59e0b';
+    case 'pending': return '#f59e0b';
     case 'rejected': return '#ef4444';
-    default:         return '#475569';
+    default: return '#475569';
   }
 }
 
@@ -37,26 +37,26 @@ export default function MatchReport() {
   }
 
   const reportActions = [...actions].sort((a, b) => (b.priority || 0) - (a.priority || 0));
-  const total         = actions.length;
-  const dispatched    = actions.filter(a => a.status === 'dispatched').length;
-  const reviewed      = actions.filter(a => a.status === 'approved' || a.status === 'rejected').length;
+  const total = actions.length;
+  const dispatched = actions.filter(a => a.status === 'dispatched').length;
+  const reviewed = actions.filter(a => a.status === 'approved' || a.status === 'rejected').length;
   const criticalCount = actions.filter(a => (a.priority || 0) >= 4).length;
 
   const withConfidence = actions.filter(a => typeof a.confidence === 'number');
-  const avgConfidence  = withConfidence.length > 0
+  const avgConfidence = withConfidence.length > 0
     ? (withConfidence.reduce((s, a) => s + a.confidence, 0) / withConfidence.length * 100).toFixed(0)
     : '—';
 
   const byStakeholder = stakeholderOrder.map(stakeholder => {
-    const items   = actions.filter(a => a.stakeholder === stakeholder);
+    const items = actions.filter(a => a.stakeholder === stakeholder);
     const highest = items.reduce((max, item) => Math.max(max, item.priority || 0), 0);
     return { stakeholder, count: items.length, highest };
   });
 
-  const maxBudget  = stadium?.incentive_config?.max_budget_per_match_inr || 200000;
-  const remaining  = Math.max(0, matchState?.remaining_budget ?? maxBudget);
-  const spent      = Math.max(0, maxBudget - remaining);
-  const budgetPct  = Math.min(100, Math.round((spent / maxBudget) * 100));
+  const maxBudget = stadium?.incentive_config?.max_budget_per_match_inr || 200000;
+  const remaining = Math.max(0, matchState?.remaining_budget ?? maxBudget);
+  const spent = Math.max(0, maxBudget - remaining);
+  const budgetPct = Math.min(100, Math.round((spent / maxBudget) * 100));
 
   const top3 = [...actions]
     .filter(a => a.status === 'dispatched' || a.status === 'approved')
@@ -64,16 +64,16 @@ export default function MatchReport() {
     .slice(0, 3);
 
   const stats = [
-    ['Total AI decisions',    total],
-    ['Auto-dispatched',       dispatched],
+    ['Total AI decisions', total],
+    ['Auto-dispatched', dispatched],
     ['Critical actions (P4+)', criticalCount],
-    ['Avg AI confidence',     avgConfidence !== '—' ? `${avgConfidence}%` : '—'],
-    ['Human reviewed',        reviewed],
-    ['Budget utilized',       `₹${spent.toLocaleString()}`],
+    ['Avg AI confidence', avgConfidence !== '—' ? `${avgConfidence}%` : '—'],
+    ['Human reviewed', reviewed],
+    ['Budget utilized', `₹${spent.toLocaleString()}`],
   ];
 
-  const homeTeam   = matchState?.home_team || 'CSK';
-  const awayTeam   = matchState?.away_team || 'MI';
+  const homeTeam = matchState?.home_team || 'CSK';
+  const awayTeam = matchState?.away_team || 'MI';
   const reportDate = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const displayedActions = showAll ? reportActions : reportActions.slice(0, 8);
@@ -98,9 +98,11 @@ export default function MatchReport() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-            <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px',
+            <a href="/" style={{
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
               color: 'var(--text-muted)', fontSize: '12px', textDecoration: 'none',
-              padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-default)' }}>
+              padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-default)'
+            }}>
               <ArrowLeft size={13} /> Dashboard
             </a>
             <button className="btn-primary" onClick={handleExportPDF} disabled={pdfCapturing} style={{ padding: '8px 16px' }}>
@@ -236,8 +238,10 @@ export default function MatchReport() {
                         const color = stakeholderColors[a.stakeholder] || '#64748b';
                         return (
                           <tr key={a.id || i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                            <td style={{ padding: '8px 10px', color: 'var(--text-muted)',
-                              fontFamily: 'monospace', fontSize: '10px', whiteSpace: 'nowrap' }}>
+                            <td style={{
+                              padding: '8px 10px', color: 'var(--text-muted)',
+                              fontFamily: 'monospace', fontSize: '10px', whiteSpace: 'nowrap'
+                            }}>
                               {a.timestamp
                                 ? new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                                 : '—'}
@@ -248,8 +252,10 @@ export default function MatchReport() {
                               </span>
                             </td>
                             <td style={{ padding: '8px 10px', color: 'var(--text-primary)', maxWidth: '260px' }}>
-                              <span style={{ display: '-webkit-box', WebkitLineClamp: 2,
-                                WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              <span style={{
+                                display: '-webkit-box', WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                              }}>
                                 {a.action}
                               </span>
                             </td>
@@ -257,8 +263,10 @@ export default function MatchReport() {
                               {a.target_zone ? a.target_zone.replace(/_/g, ' ') : '—'}
                             </td>
                             <td style={{ padding: '8px 10px' }}>
-                              <span style={{ fontSize: '10px', fontWeight: 700,
-                                color: (a.priority || 0) >= 4 ? 'var(--danger)' : 'var(--text-muted)' }}>
+                              <span style={{
+                                fontSize: '10px', fontWeight: 700,
+                                color: (a.priority || 0) >= 4 ? 'var(--danger)' : 'var(--text-muted)'
+                              }}>
                                 P{a.priority || 0}
                               </span>
                             </td>
