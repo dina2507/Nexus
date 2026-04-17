@@ -6,7 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import { defineConfig, globalIgnores } from 'eslint/config';
 
 export default defineConfig([
-  globalIgnores(['dist', 'functions/node_modules', 'nexus/', '.claude/worktrees']),
+  globalIgnores(['dist', 'functions/node_modules', 'nexus/', '.claude/', '.antigravity/']),
 
   // 1. Core JS Recommended (Base)
   {

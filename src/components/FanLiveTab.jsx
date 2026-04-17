@@ -1,18 +1,64 @@
-import { Activity, Bell } from 'lucide-react';
+import { Activity, Bell, Users } from 'lucide-react';
 
-export default function FanLiveTab({ matchState, actions, fanProfile }) {
+const densityColor = (pct) => {
+  if (pct >= 0.93) return 'var(--danger)';
+  if (pct >= 0.82) return '#ef4444';
+  if (pct >= 0.70) return 'var(--warning)';
+  return 'var(--success)';
+};
+
+const densityLabel = (pct) => {
+  if (pct >= 0.93) return 'Critical';
+  if (pct >= 0.82) return 'High';
+  if (pct >= 0.70) return 'Moderate';
+  return 'Normal';
+};
+
+export default function FanLiveTab({ matchState, actions, fanProfile, myZoneDensity = 0 }) {
   const handleHaptic = () => {
-    if (navigator.vibrate) {
-      navigator.vibrate([200, 100, 200]);
-    }
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
   };
 
   const relevantActions = actions
     .filter(a => a.stakeholder === 'fans' && (!a.target_zone || a.target_zone === fanProfile?.zone_id))
     .slice(0, 5);
 
+  const zoneLabel = fanProfile?.section || (fanProfile?.zone_id?.replace(/_/g, ' ') || 'Your Zone');
+  const pctDisplay = Math.round(myZoneDensity * 100);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+      {/* Zone density card */}
+      <div className="card" style={{ padding: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+          <Users size={16} style={{ color: densityColor(myZoneDensity) }} />
+          <span className="section-label">Your Zone — Live</span>
+          <span style={{
+            marginLeft: 'auto', fontSize: '10px', fontWeight: 700,
+            color: densityColor(myZoneDensity),
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>
+            {densityLabel(myZoneDensity)}
+          </span>
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>{zoneLabel}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ flex: 1, height: '8px', background: 'var(--bg-elevated)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{
+              width: `${pctDisplay}%`, height: '100%',
+              background: densityColor(myZoneDensity),
+              borderRadius: '4px',
+              transition: 'width 0.6s ease, background 0.4s ease',
+            }} />
+          </div>
+          <span style={{ fontSize: '18px', fontWeight: 700, color: densityColor(myZoneDensity), minWidth: '42px', textAlign: 'right' }}>
+            {pctDisplay}%
+          </span>
+        </div>
+      </div>
+
+      {/* Match stats */}
       <div className="card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -24,7 +70,6 @@ export default function FanLiveTab({ matchState, actions, fanProfile }) {
             <span style={{ fontSize: '10px' }}>Test Alert</span>
           </button>
         </div>
-        
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', textAlign: 'center' }}>
           <div>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 0 4px', textTransform: 'uppercase' }}>Over</p>

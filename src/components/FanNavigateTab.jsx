@@ -68,6 +68,11 @@ export default function FanNavigateTab({ fanProfile, myZoneDensity, stadium, tar
     ];
   }
 
+  const densityColor = myZoneDensity >= 0.93 ? 'var(--danger)'
+    : myZoneDensity >= 0.82 ? '#ef4444'
+    : myZoneDensity >= 0.70 ? 'var(--warning)'
+    : 'var(--success)';
+
   return (
     <div className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -75,6 +80,23 @@ export default function FanNavigateTab({ fanProfile, myZoneDensity, stadium, tar
         <span className="section-label">
           {targetZone && targetZone !== currentZoneId ? 'Incentivized Safe Route' : 'Standard Exit Route'}
         </span>
+      </div>
+
+      {/* Zone status strip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{
+          fontSize: '11px', fontWeight: 700, color: densityColor,
+          background: `${densityColor}18`, border: `1px solid ${densityColor}40`,
+          borderRadius: '20px', padding: '3px 10px',
+        }}>
+          Your zone: {Math.round(myZoneDensity * 100)}%
+        </div>
+        <div style={{
+          fontSize: '11px', color: 'var(--text-muted)',
+          background: 'var(--bg-elevated)', borderRadius: '20px', padding: '3px 10px',
+        }}>
+          ~{waitTime} min wait at gate {bestGate}
+        </div>
       </div>
       <div>
         <ol style={{ paddingLeft: '16px', color: 'var(--text-primary)', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>

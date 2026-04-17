@@ -8,6 +8,7 @@ const STADIUM_ZONES = {
   east_block:   { points: '296,88 380,52 380,228 296,192',  cx: 346, cy: 140, label: 'East Block'   },
   west_block:   { points: '20,52  104,88  104,192 20,228',  cx: 54,  cy: 140, label: 'West Block'   },
   concourse_a:  { points: '104,88 296,88  296,192 104,192', cx: 200, cy: 140, label: 'Concourse A'  },
+  concourse_b:  { points: '40,40  360,40  380,20  20,20',   cx: 200, cy: 30,  label: 'Concourse B'  },
 };
 
 const densityToColor = (pct) => {
@@ -50,6 +51,11 @@ const ZONES_DATA = {
     {lat: 13.0642, lng: 80.2788}, {lat: 13.0646, lng: 80.2790},
     {lat: 13.0646, lng: 80.2805}, {lat: 13.0634, lng: 80.2813},
     {lat: 13.0630, lng: 80.2810}, {lat: 13.0642, lng: 80.2798}
+  ],
+  // Outer perimeter concourse — entry/exit ring outside all stands
+  'concourse_b': [
+    {lat: 13.0650, lng: 80.2780}, {lat: 13.0650, lng: 80.2815},
+    {lat: 13.0610, lng: 80.2815}, {lat: 13.0610, lng: 80.2780}
   ]
 };
 
@@ -203,7 +209,7 @@ const StadiumMap = ({ crowdDensity = {} }) => {
               <text x="200" y="144" textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.30)" fontWeight="600" fontFamily="Outfit,sans-serif">PITCH</text>
             </svg>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '6px', padding: '0 16px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '6px', padding: '0 16px 16px' }}>
             {Object.entries(STADIUM_ZONES).map(([zoneId, zone]) => {
               const pct = crowdDensity[zoneId] ?? 0;
               const isSelected = selectedZone === zoneId;

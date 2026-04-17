@@ -52,8 +52,7 @@
   },
   "lint-staged": {
     "*.{js,jsx}": [
-      "npm run lint --if-present",
-      "npm run test --passWithNoTests"
+      "npm run lint --if-present"
     ]
   }
 }

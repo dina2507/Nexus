@@ -248,34 +248,44 @@ exports.nexusTrigger = onRequest({ cors: true }, (req, res) => {
 });
 
 const { mintJwt, verifyJwt } = require('./voucher');
+const { requireAnyAuth } = require('./middleware/anyAuth');
 
+// Fan-facing endpoint — accepts any authenticated user (including anonymous FCM auth)
 exports.mintVoucher = onRequest({ cors: true }, async (req, res) => {
-  requireOperator(req, res, async () => {
-    // We only mint for real user or demo user
-    const { actionId, uid } = req.body;
+  requireAnyAuth(req, res, async () => {
+    const { actionId } = req.body;
+    const fanUid = req.uid;
     try {
       if (!actionId) return res.status(400).json({ error: 'Missing actionId' });
-      
+
       const actionSnap = await db.doc(`nexus_actions/${actionId}`).get();
       if (!actionSnap.exists) return res.status(404).json({ error: 'Action not found' });
-      
+
       const action = actionSnap.data();
       if (action.stakeholder !== 'fans' || action.status !== 'dispatched') {
         return res.status(400).json({ error: 'Action not valid for voucher' });
       }
 
+      // Idempotency — return existing token if this fan already minted for this action
+      const mintRef = db.doc(`voucher_mints/${actionId}_${fanUid}`);
+      const existingMint = await mintRef.get();
+      if (existingMint.exists) {
+        return res.json({ token: existingMint.data().token, cached: true });
+      }
+
+      const secret = process.env.VOUCHER_SECRET || 'fallback_secret';
       const payload = {
-        jti: actionId + '_' + Date.now().toString(),
-        uid: uid || req.uid || 'anon',
+        jti: `${actionId}_${fanUid}_${Date.now()}`,
+        uid: fanUid,
         action_id: actionId,
         zone: action.target_zone || '',
         inr: action.incentive_inr || 0,
-        exp: Math.floor(Date.now() / 1000) + 3600
+        exp: Math.floor(Date.now() / 1000) + 3600,
       };
-
-      const secret = process.env.VOUCHER_SECRET || 'fallback_secret';
       const token = mintJwt(payload, secret);
-      
+
+      await mintRef.set({ token, minted_at: new Date().toISOString(), uid: fanUid });
+
       return res.json({ token, payload });
     } catch (err) {
       console.error('Mint voucher error', err);

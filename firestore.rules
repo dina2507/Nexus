@@ -10,7 +10,9 @@ service cloud.firestore {
 
     match /nexus_actions/{doc} {
       allow read: if true;
-      allow update: if request.auth != null; // operators can approve/reject
+      // Operators can only update status and resolved_at — no other field rewrites
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolved_at']);
       allow create, delete: if false;
     }
 

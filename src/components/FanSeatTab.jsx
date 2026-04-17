@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Ticket, User, Save } from 'lucide-react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -7,8 +7,12 @@ export default function FanSeatTab({ fanProfile, uid }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Editable fields 
   const [zoneId, setZoneId] = useState(fanProfile?.zone_id || 'north_stand');
+
+  // Sync zoneId when fanProfile loads asynchronously after mount
+  useEffect(() => {
+    if (fanProfile?.zone_id) setZoneId(fanProfile.zone_id);
+  }, [fanProfile?.zone_id]);
 
   const handleUpdate = async () => {
     if (!uid) return;

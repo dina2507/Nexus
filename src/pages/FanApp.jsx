@@ -129,7 +129,7 @@ const FanApp = () => {
         actionId,
       });
     });
-  }, [fanProfile?.zone_id, notification, uid]);
+  }, [fanProfile?.zone_id, uid]);
 
   const [voucherPayload, setVoucherPayload] = useState(null);
 
@@ -187,14 +187,16 @@ const FanApp = () => {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <h1 style={{ fontSize: '28px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
-            CSK <span style={{ color: 'var(--accent)' }}>vs</span> MI
+            {matchState?.home_team || 'CSK'}{' '}
+            <span style={{ color: 'var(--accent)' }}>vs</span>{' '}
+            {matchState?.away_team || 'MI'}
           </h1>
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent)' }}>
-            {matchState?.score || '122/4'}
+            {matchState?.score || '—'}
           </span>
         </div>
         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-          MA Chidambaram Stadium · IPL 2026
+          {stadium?.name || 'MA Chidambaram Stadium'} · IPL 2026
         </p>
       </header>
 
@@ -211,10 +213,11 @@ const FanApp = () => {
           />
         )}
         {activeTab === 'live' && (
-          <FanLiveTab 
-            matchState={matchState} 
-            actions={actions} 
-            fanProfile={fanProfile} 
+          <FanLiveTab
+            matchState={matchState}
+            actions={actions}
+            fanProfile={fanProfile}
+            myZoneDensity={myZoneDensity}
           />
         )}
         {activeTab === 'ticket' && (
@@ -306,6 +309,10 @@ const FanApp = () => {
                 <button
                   className="btn-primary"
                   style={{ width: '100%', padding: '10px', justifyContent: 'center' }}
+                  onClick={() => {
+                    setActiveTab('navigate');
+                    setNotification(null);
+                  }}
                 >
                   <Navigation size={14} />
                   Route me
