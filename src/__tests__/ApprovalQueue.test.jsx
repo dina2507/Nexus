@@ -17,7 +17,7 @@ describe('ApprovalQueue', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     collections.subscribePendingActions.mockImplementation((_id, _cb) => {
-      return () => {};
+      return () => { };
     });
     collections.resolveAction.mockResolvedValue(undefined);
   });
@@ -29,7 +29,7 @@ describe('ApprovalQueue', () => {
   it('renders empty state when no pending actions', () => {
     collections.subscribePendingActions.mockImplementation((_id, _cb) => {
       _cb([]);
-      return () => {};
+      return () => { };
     });
     render(<ApprovalQueue stadiumId="chepauk" />);
     expect(screen.getByText('All clear — no pending approvals')).toBeInTheDocument();
@@ -38,7 +38,7 @@ describe('ApprovalQueue', () => {
   it('renders a PendingCard per pending action', () => {
     collections.subscribePendingActions.mockImplementation((_id, _cb) => {
       _cb([{ id: '1', action: 'Do something', priority: 4, stakeholder: 'security', risk_assessment: 'Test risk' }]);
-      return () => {};
+      return () => { };
     });
     render(<ApprovalQueue stadiumId="chepauk" />);
     expect(screen.getByText('Do something')).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe('ApprovalQueue', () => {
   it('countdown reaches 0 -> calls onApprove with right closure', async () => {
     collections.subscribePendingActions.mockImplementation((_id, _cb) => {
       _cb([{ id: 'new-id', action: 'Action A', priority: 5, stakeholder: 'fans', risk_assessment: 'risk' }]);
-      return () => {};
+      return () => { };
     });
 
     render(<ApprovalQueue stadiumId="chepauk" />);

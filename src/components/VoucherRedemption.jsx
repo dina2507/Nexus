@@ -14,16 +14,16 @@ const VoucherRedemption = () => {
 
     setStatus('loading');
     setError('');
-    
+
     try {
       const resp = await fetchWithAuth(`${import.meta.env.VITE_FUNCTIONS_URL}/redeemVoucher`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: token.trim() }),
       });
-      
+
       const data = await resp.json();
-      
+
       if (resp.ok) {
         setStatus('success');
         setResult(data);
@@ -64,9 +64,9 @@ const VoucherRedemption = () => {
           />
           <Ticket size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
         </div>
-        
-        <button 
-          type="submit" 
+
+        <button
+          type="submit"
           disabled={status === 'loading' || !token.trim()}
           className="btn-primary"
           style={{ width: '100%', justifyContent: 'center' }}
@@ -83,9 +83,9 @@ const VoucherRedemption = () => {
       </form>
 
       {status === 'success' && (
-        <div style={{ 
-          padding: '10px', borderRadius: '8px', background: 'var(--success-dim)', 
-          border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', gap: '10px' 
+        <div style={{
+          padding: '10px', borderRadius: '8px', background: 'var(--success-dim)',
+          border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', gap: '10px'
         }}>
           <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />
           <div>
@@ -96,9 +96,9 @@ const VoucherRedemption = () => {
       )}
 
       {status === 'error' && (
-        <div style={{ 
-          padding: '10px', borderRadius: '8px', background: 'var(--danger-dim)', 
-          border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', gap: '10px' 
+        <div style={{
+          padding: '10px', borderRadius: '8px', background: 'var(--danger-dim)',
+          border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', gap: '10px'
         }}>
           <AlertCircle size={16} style={{ color: 'var(--danger)', flexShrink: 0 }} />
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#fca5a5' }}>{error}</div>

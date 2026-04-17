@@ -54,7 +54,7 @@ export default function DemoControls() {
     setLoading(scenarioId);
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     try {
-      const url  = `${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`;
+      const url = `${import.meta.env.VITE_FUNCTIONS_URL}/nexusTrigger`;
       const resp = await fetchWithAuth(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,8 +97,10 @@ export default function DemoControls() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <span className="badge badge-slate" style={{ marginBottom: '12px' }}>Presentation Mode</span>
-          <h1 style={{ fontSize: '26px', fontWeight: 700, margin: '0 0 8px',
-            letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+          <h1 style={{
+            fontSize: '26px', fontWeight: 700, margin: '0 0 8px',
+            letterSpacing: '-0.02em', color: 'var(--text-primary)'
+          }}>
             NEXUS Demo Controls
           </h1>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
@@ -124,8 +126,10 @@ export default function DemoControls() {
                   <Icon size={18} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '3px',
-                    color: 'var(--text-primary)' }}>
+                  <div style={{
+                    fontSize: '14px', fontWeight: 600, marginBottom: '3px',
+                    color: 'var(--text-primary)'
+                  }}>
                     {isLoading ? 'Triggering…' : s.label}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
@@ -161,12 +165,16 @@ export default function DemoControls() {
                 <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '10px', flexShrink: 0 }}>
                   {log.time}
                 </span>
-                <span style={{ color: 'var(--text-secondary)', fontWeight: 500, flex: 1, minWidth: 0,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{
+                  color: 'var(--text-secondary)', fontWeight: 500, flex: 1, minWidth: 0,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                }}>
                   {scenarios.find(s => s.id === log.scenario)?.label || log.scenario}
                 </span>
-                <span style={{ fontSize: '10px', fontWeight: 600, flexShrink: 0,
-                  color: log.success ? 'var(--success)' : 'var(--danger)' }}>
+                <span style={{
+                  fontSize: '10px', fontWeight: 600, flexShrink: 0,
+                  color: log.success ? 'var(--success)' : 'var(--danger)'
+                }}>
                   {log.success ? '✓ sent' : '✕ failed'}
                 </span>
               </motion.div>
