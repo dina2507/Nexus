@@ -394,7 +394,7 @@ const OpsDashboard = () => {
           })}
         </div>
 
-        <div style={{ padding: '2px 0' }}>
+        <div style={{ padding: '2px 0' }} aria-live="polite" role="log">
           <AnimatePresence initial={false}>
             {filteredActions.length > 0 ? filteredActions.map((action, idx) => {
               const color = getStakeholderColor(action.stakeholder);
@@ -486,6 +486,8 @@ const OpsDashboard = () => {
             display: 'flex', justifyContent: 'center', zIndex: 200, pointerEvents: 'none',
           }}>
             <motion.div
+              role="alert"
+              aria-live="assertive"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
