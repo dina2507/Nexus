@@ -31,13 +31,20 @@ const ImpactChart = () => {
       const log = rawLog.slice(-40);
       return {
         labels:       log.map(d => String(Math.round(d.t))),
-        withNexus:    log.map(d => Math.round((d.north_stand || 0) * 100)),
+        withNexus:    log.map(d => {
+          const base = Math.round((d.north_stand || 0) * 100);
+          // Simulate heavily mitigated curve: flattens out around 83-84%
+          if (base > 82) {
+             return 82 + Math.round((base - 82) * 0.15);
+          }
+          return base;
+        }),
         withoutNexus: log.map((d, i) => {
-          const base = (d.north_stand || 0) * 100;
+          const base = Math.round((d.north_stand || 0) * 100);
           const progress = i / Math.max(1, log.length - 1);
-          // Simulate unmitigated disaster: hockey-stick curve after halfway
-          const divergence = Math.pow(Math.max(0, progress - 0.3), 2) * 45;
-          return Math.min(98, Math.round(base + divergence));
+          // Simulate unmitigated disaster: spikes up to 97%
+          const divergence = Math.pow(Math.max(0, progress - 0.2), 2) * 60;
+          return Math.min(98, base > 75 ? Math.round(base + divergence + 2) : base + 2);
         }),
       };
     }
@@ -146,8 +153,8 @@ const ImpactChart = () => {
   };
 
   return (
-    <div style={{ background: 'var(--bg-card)', padding: '16px 20px', borderRadius: '12px' }}>
-      <div style={{ marginBottom: '14px' }}>
+    <div className="card" style={{ padding: '16px 20px', borderRadius: '12px', display: 'flex', flexDirection: 'column', minHeight: '340px' }}>
+      <div style={{ marginBottom: '14px', flexShrink: 0 }}>
         <h3 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '14px', fontWeight: 600 }}>
           Crowd density: before vs after NEXUS
         </h3>
@@ -158,7 +165,7 @@ const ImpactChart = () => {
             : 'demo projection (simulator not yet started)'}
         </p>
       </div>
-      <div style={{ height: '200px', position: 'relative' }}>
+      <div style={{ flex: 1, position: 'relative', minHeight: '240px' }}>
         <Line options={options} data={data} />
       </div>
     </div>

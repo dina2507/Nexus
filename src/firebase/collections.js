@@ -50,10 +50,11 @@ export function subscribeActions(stadiumId, callback) {
 /**
  * Approve or reject a pending action (human-in-the-loop).
  */
-export async function resolveAction(actionId, decision) {
+export async function resolveAction(actionId, decision, operatorUid = 'system') {
   await updateDoc(doc(db, 'nexus_actions', actionId), {
     status: decision, // 'approved' or 'rejected'
-    resolved_at: new Date().toISOString()
+    resolved_at: new Date().toISOString(),
+    operator_uid: operatorUid
   });
 }
 

@@ -138,6 +138,15 @@ exports.nexusTrigger = onRequest({ cors: true }, (req, res) => {
         broadcast_recipients: tokens.length,
       });
 
+      // Log to audit_logs
+      await db.collection('audit_logs').add({
+        type: 'emergency_broadcast',
+        stadium_id: stadiumId,
+        operator_uid: req.uid,
+        timestamp: new Date().toISOString(),
+        details: { recipients: tokens.length }
+      });
+
       return res.json({
         success: true,
         type: 'emergency_broadcast',
@@ -154,7 +163,7 @@ exports.nexusTrigger = onRequest({ cors: true }, (req, res) => {
   if (manualAction) {
     console.log(`NEXUS: Manual override — stakeholder: ${manualAction.stakeholder}`);
     try {
-      await db.collection('nexus_actions').add({
+      const docRef = await db.collection('nexus_actions').add({
         stakeholder: manualAction.stakeholder,
         action: manualAction.action,
         priority: manualAction.priority || 3,
@@ -163,7 +172,30 @@ exports.nexusTrigger = onRequest({ cors: true }, (req, res) => {
         timestamp: new Date().toISOString(),
         risk_assessment: 'Manual operator override',
         confidence: 1.0,
+        target_zone: manualAction.target_zone || null,
+        incentive_inr: manualAction.incentive_inr || 0,
       });
+
+      if (manualAction.stakeholder === 'fans') {
+        const { sendFanNudge } = require('./fanNudge');
+        await sendFanNudge({
+          action: manualAction.action,
+          target_zone: manualAction.target_zone || 'west_block',
+          incentive_inr: manualAction.incentive_inr || 80,
+          zone_label: (manualAction.target_zone || 'west_block').replaceAll('_', ' '),
+          id: docRef.id
+        }, stadiumId);
+      }
+
+      // Log to audit_logs
+      await db.collection('audit_logs').add({
+        type: 'manual_override',
+        stadium_id: stadiumId,
+        operator_uid: req.uid,
+        timestamp: new Date().toISOString(),
+        details: manualAction
+      });
+
       return res.json({ success: true, type: 'manual_override' });
     } catch (err) {
       return res.status(500).json({ error: err.message });

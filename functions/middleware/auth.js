@@ -23,6 +23,7 @@ async function requireOperator(req, res, next) {
     const operatorSnap = await db.doc(`operators/${uid}`).get();
     
     if (!operatorSnap.exists) {
+      console.warn(`Auth reject: UID ${uid} not in operators collection`);
       return res.status(403).json({ error: 'Forbidden: User is not an operator' });
     }
 
@@ -30,6 +31,7 @@ async function requireOperator(req, res, next) {
     req.operatorRole = role;
 
     if (role !== 'admin' && role !== 'viewer') {
+      console.warn(`Auth reject: UID ${uid} has invalid role: ${role}`);
       return res.status(403).json({ error: 'Forbidden: Invalid role' });
     }
 

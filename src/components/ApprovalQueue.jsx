@@ -3,7 +3,7 @@ import { subscribePendingActions, resolveAction } from '../firebase/collections'
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Check, X, Clock } from 'lucide-react';
 
-const ApprovalQueue = ({ stadiumId = 'chepauk' }) => {
+const ApprovalQueue = ({ stadiumId = 'chepauk', operatorUid = 'system' }) => {
   const [pendingActions, setPendingActions] = useState([]);
 
   useEffect(() => {
@@ -12,7 +12,7 @@ const ApprovalQueue = ({ stadiumId = 'chepauk' }) => {
   }, [stadiumId]);
 
   const handleResolve = async (actionId, decision) => {
-    try { await resolveAction(actionId, decision); }
+    try { await resolveAction(actionId, decision, operatorUid); }
     catch (err) { console.error('Failed to resolve action:', err); }
   };
 

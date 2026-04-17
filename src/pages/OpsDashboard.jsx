@@ -5,10 +5,10 @@ import { Users, Shield, Zap, AlertTriangle, Terminal, Map, List, Pause, Play, Ra
 import StadiumMap from '../components/StadiumMap';
 import ZoneDensityBars from '../components/ZoneDensityBars';
 import ImpactChart from '../components/ImpactChart';
-import ApprovalQueue from '../components/ApprovalQueue';
 import GateActivityPanel from '../components/GateActivityPanel';
 import WeatherPill from '../components/WeatherPill';
 import StadiumPicker from '../components/StadiumPicker';
+import VoucherRedemption from '../components/VoucherRedemption';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase/config';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
@@ -17,7 +17,7 @@ import { fetchWithAuth } from '../components/auth';
 const OVERRIDE_ACTIONS = [
   { id: 'gate',    stakeholder: 'security',  action: 'Open Gate G8 — redirect north exit flow',         label: 'Open Gate G8'   },
   { id: 'medical', stakeholder: 'medical',   action: 'Call medical standby to North Stand corridor',     label: 'Medical Stand N' },
-  { id: 'fan',     stakeholder: 'fans',      action: 'Move to West Block — less crowded, faster exit',   label: 'Push Fan Nudge'  },
+  { id: 'fan',     stakeholder: 'fans',      action: 'Move to West Block — less crowded, faster exit',   label: 'Push Fan Nudge', target_zone: 'west_block', incentive_inr: 80  },
   { id: 'bus',     stakeholder: 'transport', action: 'Hold 5 buses at Gate 7 for 20 minutes',            label: 'Hold Buses'      },
 ];
 
@@ -122,7 +122,13 @@ const OpsDashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stadiumId: activeStadiumId,
-          manualAction: { stakeholder: a.stakeholder, action: a.action, priority: 3 },
+          manualAction: {
+            stakeholder: a.stakeholder,
+            action: a.action,
+            priority: 3,
+            target_zone: a.target_zone,
+            incentive_inr: a.incentive_inr
+          },
         }),
       });
       setToast({ message: `${a.label} dispatched`, type: 'success' });
@@ -193,6 +199,62 @@ const OpsDashboard = () => {
 
       <GateActivityPanel />
 
+      {/* Voucher Redemption Tool */}
+      <section className="card" style={{ overflow: 'hidden' }}>
+        <div style={{
+          padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex', alignItems: 'center', gap: '7px',
+        }}>
+          <Zap size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <span className="section-label">Voucher Redemption</span>
+        </div>
+        <div style={{ padding: '12px' }}>
+          <VoucherRedemption />
+        </div>
+      </section>
+
+      {/* Operator Override */}
+      <section className="card" style={{ overflow: 'hidden' }}>
+        <div style={{
+          padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex', alignItems: 'center', gap: '7px', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <Terminal size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+            <span className="section-label">Operator Override</span>
+          </div>
+          {enginePaused && <span className="badge badge-amber">AI Paused</span>}
+        </div>
+
+        <div style={{ padding: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <button className="override-btn" onClick={togglePause}
+            aria-label={enginePaused ? 'Resume NEXUS AI engine' : 'Pause NEXUS AI engine'}
+            style={{ '--btn-color': 'var(--warning)' }}
+          >
+            {enginePaused ? <Play size={14} /> : <Pause size={14} />}
+            {enginePaused ? 'Resume AI' : 'Pause AI'}
+          </button>
+          <button className="override-btn" onClick={triggerEmergencyBroadcast} disabled={broadcastLoading}
+            aria-label="Trigger emergency broadcast to all fans"
+            style={{ '--btn-color': 'var(--danger)' }}
+          >
+            <Radio size={14} />
+            {broadcastLoading ? 'Sending…' : 'Emergency'}
+          </button>
+          {OVERRIDE_ACTIONS.map(a => {
+            const color = getStakeholderColor(a.stakeholder);
+            return (
+              <button key={a.id} className="override-btn" onClick={() => dispatchOverride(a)} disabled={overrideLoading !== null}
+                title={a.action} aria-label={a.action}
+                style={{ '--btn-color': color }}
+              >
+                {overrideLoading === a.id ? '…' : a.label}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* AI Engine Status — confidence gauge + threat level */}
       <section className="card" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '14px' }}>
@@ -241,8 +303,8 @@ const OpsDashboard = () => {
     </motion.div>
   );
 
-  // ── Center column ─────────────────────────────────────────
-  const centerCol = (
+  // ── Main column ─────────────────────────────────────────
+  const mainCol = (
     <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.15 }}
       style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
@@ -280,99 +342,19 @@ const OpsDashboard = () => {
         </div>
       </div>
 
-      <div className="card" style={{ overflow: 'hidden', minHeight: '380px', position: 'relative' }}>
-        <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 10, display: 'flex', gap: '6px' }}>
-          <span className="badge badge-blue">Live Map</span>
-          <span className="badge badge-slate">{stadium?.name || 'Chepauk'}</span>
-        </div>
-        <StadiumMap crowdDensity={mapDensities} />
-      </div>
-      <ImpactChart />
-    </motion.div>
-  );
-
-  // ── Right column ──────────────────────────────────────────
-  const rightCol = (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2 }}
-      style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-      {/* Operator Override */}
-      <section className="card" style={{ overflow: 'hidden' }}>
-        <div style={{
-          padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex', alignItems: 'center', gap: '7px', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-            <Terminal size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-            <span className="section-label">Operator Override</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', flexShrink: 0 }}>
+        <div className="card" style={{ overflow: 'hidden', minHeight: '320px', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 10, display: 'flex', gap: '6px' }}>
+            <span className="badge badge-blue">Live Map</span>
+            <span className="badge badge-slate">{stadium?.name || 'Chepauk'}</span>
           </div>
-          {enginePaused && <span className="badge badge-amber">AI Paused</span>}
+          <StadiumMap crowdDensity={mapDensities} />
         </div>
-
-        <div style={{ padding: '10px 12px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-          <button className="btn-ghost" onClick={togglePause}
-            aria-label={enginePaused ? 'Resume NEXUS AI engine' : 'Pause NEXUS AI engine'}
-            style={{
-              padding: '8px 6px', fontSize: '11px', justifyContent: 'center', gap: '5px',
-              color: enginePaused ? 'var(--success)' : 'var(--warning)',
-              borderColor: enginePaused ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)',
-            }}
-          >
-            {enginePaused ? <Play size={12} /> : <Pause size={12} />}
-            {enginePaused ? 'Resume AI' : 'Pause AI'}
-          </button>
-          <button className="btn-ghost" onClick={triggerEmergencyBroadcast} disabled={broadcastLoading}
-            aria-label="Trigger emergency broadcast to all fans"
-            style={{
-              padding: '8px 6px', fontSize: '11px', justifyContent: 'center', gap: '5px',
-              color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.3)',
-            }}
-          >
-            <Radio size={12} />
-            {broadcastLoading ? 'Sending…' : 'Emergency'}
-          </button>
-        </div>
-
-        <div style={{ padding: '8px 12px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-          {OVERRIDE_ACTIONS.map(a => {
-            const color = getStakeholderColor(a.stakeholder);
-            return (
-              <button key={a.id} onClick={() => dispatchOverride(a)} disabled={overrideLoading !== null}
-                title={a.action} aria-label={a.action}
-                style={{
-                  padding: '9px 8px', fontSize: '11px', fontWeight: 600,
-                  fontFamily: 'Outfit, sans-serif', textAlign: 'center',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                  background: color + '12', border: `1px solid ${color}28`,
-                  borderLeft: `3px solid ${color}`, color, borderRadius: '8px',
-                  cursor: overrideLoading !== null ? 'wait' : 'pointer',
-                  transition: 'background 0.15s, opacity 0.15s',
-                  opacity: overrideLoading !== null && overrideLoading !== a.id ? 0.5 : 1,
-                }}
-              >
-                {overrideLoading === a.id ? '…' : a.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Approval Queue */}
-      <section className="card" style={{ overflow: 'hidden' }}>
-        <div style={{
-          padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex', alignItems: 'center', gap: '7px',
-        }}>
-          <AlertTriangle size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-          <span className="section-label">Pending Approvals</span>
-        </div>
-        <div style={{ padding: '12px' }}>
-          <ApprovalQueue stadiumId={activeStadiumId} />
-        </div>
-      </section>
+        <ImpactChart />
+      </div>
 
       {/* Response Feed with stakeholder filter tabs */}
-      <section className="card" style={{ display: 'flex', flexDirection: 'column', minHeight: '300px', overflow: 'hidden' }}>
+      <section className="card" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: '300px' }}>
         <div style={{
           padding: '12px 16px 8px', borderBottom: '1px solid var(--border-subtle)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
@@ -412,7 +394,7 @@ const OpsDashboard = () => {
           })}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '2px 0' }}>
+        <div style={{ padding: '2px 0' }}>
           <AnimatePresence initial={false}>
             {filteredActions.length > 0 ? filteredActions.map((action, idx) => {
               const color = getStakeholderColor(action.stakeholder);
@@ -623,16 +605,13 @@ const OpsDashboard = () => {
       </div>
 
       {/* ─── Main content ─── */}
-      <main style={{ flex: 1, maxWidth: '1600px', width: '100%', margin: '0 auto', padding: '16px 16px 80px' }}>
+      <main style={{ flex: 1, width: '100%', padding: '16px 24px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div className="ops-grid">
           <div className="ops-col" data-tab="zones" data-active={mobileTab === 'zones' || undefined}>
             {leftCol}
           </div>
-          <div className="ops-col ops-col-center" data-tab="map" data-active={mobileTab === 'map' || undefined}>
-            {centerCol}
-          </div>
-          <div className="ops-col" data-tab="actions" data-active={mobileTab === 'actions' || undefined}>
-            {rightCol}
+          <div className="ops-col ops-col-main" data-tab="map" data-active={mobileTab === 'map' || undefined}>
+            {mainCol}
           </div>
         </div>
       </main>

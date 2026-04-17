@@ -31,7 +31,7 @@ export default function MatchReport() {
 
   async function handleExportPDF() {
     setPdfCapturing(true);
-    await new Promise(r => setTimeout(r, 350));
+    await new Promise(r => setTimeout(r, 800));
     await toPDF();
     setPdfCapturing(false);
   }
@@ -54,7 +54,8 @@ export default function MatchReport() {
   });
 
   const maxBudget  = stadium?.incentive_config?.max_budget_per_match_inr || 200000;
-  const spent      = Math.max(0, maxBudget - (matchState?.remaining_budget ?? maxBudget));
+  const remaining  = Math.max(0, matchState?.remaining_budget ?? maxBudget);
+  const spent      = Math.max(0, maxBudget - remaining);
   const budgetPct  = Math.min(100, Math.round((spent / maxBudget) * 100));
 
   const top3 = [...actions]

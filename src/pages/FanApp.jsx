@@ -33,6 +33,7 @@ const FanApp = () => {
   const [activeTab, setActiveTab] = useState('navigate');
   const [fanProfile, setFanProfile] = useState(null);
   const [uid, setUid] = useState(null);
+  const [activeTargetZone, setActiveTargetZone] = useState(null);
 
   // ── Auth + FCM bootstrap + profile load ──────────────────
   useEffect(() => {
@@ -209,7 +210,7 @@ const FanApp = () => {
             myZoneDensity={myZoneDensity} 
             stadium={stadium} 
             densities={densities} 
-            targetZone={notification?.target_zone || null}
+            targetZone={activeTargetZone}
           />
         )}
         {activeTab === 'live' && (
@@ -310,6 +311,7 @@ const FanApp = () => {
                   className="btn-primary"
                   style={{ width: '100%', padding: '10px', justifyContent: 'center' }}
                   onClick={() => {
+                    setActiveTargetZone(notification.target_zone || null);
                     setActiveTab('navigate');
                     setNotification(null);
                   }}

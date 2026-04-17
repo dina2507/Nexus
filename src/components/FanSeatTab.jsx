@@ -80,13 +80,15 @@ export default function FanSeatTab({ fanProfile, uid }) {
 
           <button className="btn-primary" 
             onClick={handleUpdate} 
-            disabled={loading}
-            style={{ width: '100%', justifyContent: 'center', padding: '10px', marginTop: '4px' }}>
+            disabled={loading || success}
+            style={{ width: '100%', justifyContent: 'center', padding: '10px', marginTop: '4px',
+              backgroundColor: success ? 'var(--success)' : undefined,
+              borderColor: success ? 'var(--success)' : undefined,
+              color: success ? '#fff' : undefined
+            }}>
             <Save size={14} />
-            {loading ? 'Saving...' : 'Update Profile'}
+            {loading ? 'Saving...' : success ? 'Profile Updated!' : 'Update Profile'}
           </button>
-          
-          {success && <p style={{ color: 'var(--success)', fontSize: '11px', textAlign: 'center', margin: 0 }}>Profile updated successfully!</p>}
         </div>
       </div>
     </div>

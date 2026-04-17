@@ -57,6 +57,6 @@ describe('ApprovalQueue', () => {
       vi.advanceTimersByTime(61000);
     });
 
-    expect(collections.resolveAction).toHaveBeenCalledWith('new-id', 'approved');
+    expect(collections.resolveAction).toHaveBeenCalledWith('new-id', 'approved', 'system');
   });
 });

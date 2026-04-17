@@ -1,7 +1,9 @@
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { RotateCcw, AlertTriangle, Flag, Zap } from 'lucide-react';
 import { fetchWithAuth } from '../components/auth';
+import { auth } from '../firebase/config';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState } from 'react';
 
 const scenarios = [
   {
@@ -37,6 +39,16 @@ const scenarios = [
 export default function DemoControls() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(null);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      setAuthLoading(false);
+    });
+    return () => unsub();
+  }, []);
 
   async function triggerScenario(scenarioId) {
     setLoading(scenarioId);
@@ -57,6 +69,23 @@ export default function DemoControls() {
       setLoading(null);
     }
   }
+
+  if (authLoading) return <div style={{ color: 'white', padding: '40px', textAlign: 'center' }}>Checking authentication...</div>;
+
+  if (!user) return (
+    <div style={{ background: 'var(--bg-base)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div className="card" style={{ maxWidth: '400px', width: '100%', padding: '32px', textAlign: 'center' }}>
+        <AlertTriangle size={48} style={{ color: 'var(--warning)', marginBottom: '16px' }} />
+        <h2 style={{ color: 'white', marginBottom: '12px' }}>Authentication Required</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
+          You must be signed in as an operator to trigger demo scenarios.
+        </p>
+        <a href="/" className="btn-primary" style={{ display: 'inline-flex', textDecoration: 'none' }}>
+          Go to Dashboard to Sign In
+        </a>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{

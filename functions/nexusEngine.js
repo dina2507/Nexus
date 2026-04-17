@@ -153,16 +153,8 @@ async function runNexusEngine(stadiumId = 'chepauk', db, { force = false } = {})
     if (!action.action) return; // Skip if no action needed
     const ref = db.collection('nexus_actions').doc();
     
-    // Auto-dispatch routine actions, queue critical for human review
-    let actionStatus = 'dispatched';
-    if (action.priority >= 4) {
-      actionStatus = 'pending';
-    } else {
-      const targetZoneId = action.target_zone || action.target;
-      if (targetZoneId && crowdState[targetZoneId] && crowdState[targetZoneId].pct >= 0.93) {
-        actionStatus = 'pending';
-      }
-    }
+    // AI autonomy: All actions are auto-dispatched
+    const actionStatus = 'dispatched';
 
     batch.set(ref, {
       stakeholder,
@@ -205,7 +197,7 @@ function buildFallbackDecision(crowdState, matchState, stadium) {
   const priority = isCritical ? 4 : 3;
 
   return {
-    risk_assessment: `Fallback engine: ${hotZoneId} at ${(hotPct * 100).toFixed(0)}% density. ${isCritical ? 'Critical threshold exceeded — human review required.' : 'Approaching crush threshold — taking preventive action.'}`,
+    risk_assessment: `Fallback engine: ${hotZoneId} at ${(hotPct * 100).toFixed(0)}% density. ${isCritical ? 'Critical threshold exceeded — taking autonomous action.' : 'Approaching crush threshold — taking preventive action.'}`,
     confidence: 0.65,
     actions: {
       security: {

@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigation } from 'lucide-react';
 import { fetchWithAuth } from './auth';
 
 export default function FanNavigateTab({ fanProfile, myZoneDensity, stadium, targetZone }) {
   const [overrideLoading, setOverrideLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+
+  useEffect(() => {
+    if (targetZone) setSuccessMsg('');
+  }, [targetZone]);
 
   const handleGetMeOut = async () => {
     setOverrideLoading(true);
@@ -18,7 +22,8 @@ export default function FanNavigateTab({ fanProfile, myZoneDensity, stadium, tar
           manualAction: {
             stakeholder: 'fans',
             action: `Push route update requested for ${fanProfile?.zone_id || 'unknown'}`,
-            priority: 4
+            priority: 4,
+            target_zone: fanProfile?.zone_id || 'north_stand'
           }
         })
       });
@@ -37,25 +42,41 @@ export default function FanNavigateTab({ fanProfile, myZoneDensity, stadium, tar
   let routeSteps = [];
   const currentZoneId = fanProfile?.zone_id;
   
-  if (targetZone && targetZone !== currentZoneId && stadium?.zones) {
-    const startZone = stadium.zones.find(z => z.id === currentZoneId);
-    const endZone = stadium.zones.find(z => z.id === targetZone);
-    
-    if (startZone && endZone) {
-      // Check if directly adjacent based on adjacency map
-      if (startZone.adjacent_zones?.includes(targetZone)) {
+  if (targetZone && stadium?.zones) {
+    if (targetZone === currentZoneId) {
+      // The fan is IN the target zone and needs to be redirected OUT of it
+      const startZone = stadium.zones.find(z => z.id === currentZoneId);
+      if (startZone && startZone.adjacent_zones?.length > 0) {
+        const endZoneId = startZone.adjacent_zones[0];
+        const endZone = stadium.zones.find(z => z.id === endZoneId);
+        
         routeSteps = [
           `Exit your row and safely proceed to the nearest concourse.`,
-          `Follow signs to the adjacent ${endZone.label}.`,
-          `Proceed to the designated voucher area in ${endZone.label}.`
+          `Follow signs to the adjacent ${endZone?.label || 'safe area'}.`,
+          `Proceed to the designated voucher area away from congestion.`
         ];
-      } else {
-        // Assume indirect: go to concourse then to target
-        routeSteps = [
-          `Exit your row and move toward the main ring.`,
-          `Take the connecting concourse toward ${endZone.label}.`,
-          `Arrive at ${endZone.label} safely away from the congestion.`
-        ];
+      }
+    } else {
+      // Target zone is a specific destination
+      const startZone = stadium.zones.find(z => z.id === currentZoneId);
+      const endZone = stadium.zones.find(z => z.id === targetZone);
+      
+      if (startZone && endZone) {
+        // Check if directly adjacent based on adjacency map
+        if (startZone.adjacent_zones?.includes(targetZone)) {
+          routeSteps = [
+            `Exit your row and safely proceed to the nearest concourse.`,
+            `Follow signs to the adjacent ${endZone.label}.`,
+            `Proceed to the designated voucher area in ${endZone.label}.`
+          ];
+        } else {
+          // Assume indirect: go to concourse then to target
+          routeSteps = [
+            `Exit your row and move toward the main ring.`,
+            `Take the connecting concourse toward ${endZone.label}.`,
+            `Arrive at ${endZone.label} safely away from the congestion.`
+          ];
+        }
       }
     }
   }
